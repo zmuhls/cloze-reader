@@ -4,9 +4,9 @@
   "description": "Gutenberg-based cloze deletion practice app built with TypeScript",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zmuhls/lm-erasure-game.git"
+    "url": "git+https://github.com/zmuhls/cloze-reader.git"
   },
-  "homepage": "https://zmuhls.github.io/lm-erasure-game",
+  "homepage": "https://zmuhls.github.io/cloze-reader",
   "scripts": {
     "dev": "parcel inference.html index.html",
     "build": "parcel build inference.html index.html --public-url ./",
