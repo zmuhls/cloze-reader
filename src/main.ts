@@ -73,9 +73,12 @@ export async function fetchGutenbergPassage(category: string | null = null, auth
     tempForceFallback: TEMP_FORCE_FALLBACK
   });
 
-  // Use hardcoded examples if we're on GitHub Pages, have no valid API key,
-  // if we're forcing fallback mode (useful for debugging), or temporarily forcing fallback globally
-  if (isGitHubPages || !hasValidApiKey || FORCE_FALLBACK || TEMP_FORCE_FALLBACK) {
+  // Use hardcoded examples if:
+  // - we're on GitHub Pages AND don't have a custom key, OR
+  // - have no valid API key, OR
+  // - if we're forcing fallback mode (useful for debugging), OR
+  // - temporarily forcing fallback globally
+  if ((isGitHubPages && !isUsingCustomKey) || !hasValidApiKey || FORCE_FALLBACK || TEMP_FORCE_FALLBACK) {
     console.warn("Using fallback passage due to environment or missing API key.");
     // Return category-specific examples if possible
     let fallbackParagraphs: string;
