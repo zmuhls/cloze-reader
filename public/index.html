@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Styles will be injected by Parcel -->
+  <title>LM Inference Game</title>
+</head>
+<body class="h-screen w-screen m-0 p-0 flex flex-col text-typewriter">
+  <header class="shadow p-4 flex justify-between items-center bg-aged-paper">
+    <h1 id="game-title" class="text-2xl font-bold tracking-wider text-shadow-typewriter">LM Inference Game</h1>
+    <div class="flex space-x-4">
+      <div class="relative">
+        <select id="category-select" class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper appearance-none pr-8">
+          <option value="" selected>Random Topic</option>
+          <option value="adventure">Adventure</option>
+          <option value="romance">Romance</option>
+          <option value="science">Science</option>
+          <option value="history">History</option>
+          <option value="philosophy">Philosophy</option>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-typewriter-ink">
+          <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+          </svg>
+        </div>
+      </div>
+      <button id="settings-btn" class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper">
+        <span class="hidden sm:inline">Settings</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block sm:hidden" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+        </svg>
+      </button>
+      <input id="author-input" type="text" placeholder="Author (optional)" class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:border-typewriter-ribbon">
+      <button id="new-text-btn" class="px-4 py-2 bg-purple-600 text-white font-medium rounded shadow-typewriter hover:bg-purple-700">New Text</button>
+      <span id="round-info" class="text-lg tracking-typewriter font-typewriter">Round 1 — 5 blanks</span>
+      <button id="hint-btn" class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper disabled:opacity-50" disabled>Hint (3)</button>
+      <button id="submit-btn" class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper disabled:opacity-50" disabled>Submit</button>
+    </div>
+  </header>
+  <main id="app" class="flex-1 overflow-auto p-6 grid grid-rows-[auto_1fr_auto] gap-4">
+    <section id="game-area" class="prose prose-lg p-4 rounded shadow break-words ink-ribbon-effect"></section>
+    <section id="teaching-area" class="prose prose-md p-4 rounded shadow hidden ink-ribbon-effect"></section>
+    <footer id="result" class="text-center text-lg font-medium text-shadow-typewriter"></footer>
+  </main>
+  
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-aged-paper p-6 rounded shadow-typewriter max-w-md w-full">
+      <h2 class="text-xl font-bold mb-4 text-shadow-typewriter">Settings</h2>
+      
+      <div class="mb-4">
+        <label for="api-key-input" class="block mb-2 text-typewriter-ink">OpenRouter API Key</label>
+        <input 
+          id="api-key-input" 
+          type="password" 
+          class="w-full p-2 border border-typewriter-ink bg-aged-paper-light rounded focus:outline-none focus:border-typewriter-ribbon" 
+          placeholder="sk-or-..."
+        >
+        <p class="text-sm mt-1 text-typewriter-ink opacity-70">Get a free key at <a href="https://openrouter.ai" target="_blank" class="underline hover:text-typewriter-ribbon">openrouter.ai</a></p>
+      </div>
+      
+      <div class="flex justify-end space-x-3 mt-6">
+        <button id="settings-cancel" class="px-4 py-2 border border-typewriter-ink rounded hover:bg-aged-paper-dark">Cancel</button>
+        <button id="settings-save" class="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800">Save</button>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module" src="./index.js"></script>
+  
+  <!-- JavaScript for typewriter text effect -->
+  <script>
+    // Function to wrap each word character in a span for the uneven effect
+    function applyTypewriterEffect() {
+      // Function to wrap each letter in a span for uneven styling
+      function wrapLetters(element) {
+        if (!element || element.classList.contains('processed-typewriter')) return;
+        
+        const text = element.textContent;
+        if (!text || text.trim() === '') return;
+        
+        // Skip inputs and elements with no text content
+        if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || 
+            element.tagName === 'BUTTON' || element.children.length > 0) {
+          return;
+        }
+        
+        element.classList.add('processed-typewriter', 'typewriter-text');
+        
+        // Only process characters, leave spaces as-is to prevent layout issues
+        let processedHTML = '';
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (char === ' ') {
+            processedHTML += ' ';
+          } else {
+            processedHTML += `<span>${char}</span>`;
+          }
+        }
+        
+        element.innerHTML = processedHTML;
+      }
+      
+      // Process text in game area
+      const gameArea = document.getElementById('game-area');
+      if (gameArea) {
+        const textNodes = gameArea.querySelectorAll('p:not(.processed-typewriter)');
+        textNodes.forEach(wrapLetters);
+      }
+      
+      // Process result area
+      const resultArea = document.getElementById('result');
+      if (resultArea && !resultArea.classList.contains('processed-typewriter')) wrapLetters(resultArea);
+    }
+    
+    // Apply initially and when DOM changes
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initial application
+      setTimeout(applyTypewriterEffect, 100);
+      
+      // Create observer to watch for DOM changes
+      const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+          if (mutation.type === 'childList' || mutation.type === 'characterData') {
+            setTimeout(applyTypewriterEffect, 100);
+          }
+        });
+      });
+      
+      // Observe the game and result areas
+      const gameArea = document.getElementById('game-area');
+      const resultArea = document.getElementById('result');
+      const teachingArea = document.getElementById('teaching-area');
+      
+      if (gameArea) observer.observe(gameArea, { childList: true, subtree: true, characterData: true });
+      if (resultArea) observer.observe(resultArea, { childList: true, subtree: true, characterData: true });
+      if (teachingArea) observer.observe(teachingArea, { childList: true, subtree: true, characterData: true });
+    });
+  </script>
+</body>
+</html>

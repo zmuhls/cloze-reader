@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Import the CSS and TypeScript via Parcel bundling -->
+  <link rel="stylesheet" href="src/styles.css">
+  <!-- Import the main Preact application entry point -->
+  <script type="module" src="src/app.tsx"></script>
+  <script>
+    // Global function to start a game round (kept for backward compatibility if needed)
+    function manuallyStartGame() {
+      console.warn("manuallyStartGame called. This function is deprecated in favor of Preact component logic.");
+      // Display loading message
+      const gameArea = document.getElementById('game-area');
+      if (gameArea) {
+        gameArea.innerHTML = '<div class="text-center p-4"><p class="text-lg typewriter-text">Fetching new paragraphs from Gutenberg...</p><p class="text-sm mt-2 text-opacity-70">*click* *clack* *ding*</p></div>';
+        
+        // If TS function is loaded, use it
+        if (typeof window.startRound === 'function') {
+          setTimeout(() => window.startRound(), 100);
+        } else {
+          // Add fallback text after a delay
+          setTimeout(() => {
+            gameArea.innerHTML = `
+              <p class="typewriter-text leading-relaxed break-words mb-6">
+                The ability to <input type="text" data-paragraph="0" data-index="3" placeholder="_____" class="border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none"> clearly and rationally is essential for making good <input type="text" data-paragraph="0" data-index="10" placeholder="_____" class="border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none"> and solving problems effectively. Critical thinking involves analyzing information <input type="text" data-paragraph="0" data-index="19" placeholder="_____" class="border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none"> and making reasoned judgments based on evidence rather than personal bias or emotional <input type="text" data-paragraph="0" data-index="30" placeholder="_____" class="border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none">. It requires skills such as attention to detail, logical reasoning, and the willingness to question assumptions.
+              </p>
+              <p class="typewriter-text leading-relaxed break-words mb-6">
+                Throughout history, literature has served as a mirror <input type="text" data-paragraph="1" data-index="8" placeholder="_____" class="border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none"> the values, concerns, and aspirations of society. Books allow us to experience different perspectives, fostering empathy and understanding across cultural divides. Whether through fiction or non-fiction, the written word preserves human knowledge and invites readers to engage with ideas that may challenge or expand their worldview.
+              </p>
+            `;
+          }, 1500);
+        }
+      }
+    }
+    
+  </script>
+  <title>Cloze Reader</title>
+</head>
+<body class="h-screen w-screen m-0 p-0 flex flex-col text-typewriter">
+  <header class="shadow p-4 flex justify-between items-center bg-aged-paper">
+    <div class="flex items-center">
+      <img id="header-icon" src="icon.png" alt="Cloze Icon" class="mr-2">
+      <h1 id="game-title" class="text-2xl font-bold tracking-wider text-shadow-typewriter">Cloze Reader</h1>
+    </div>
+    <div class="flex space-x-4 flex-wrap md:flex-nowrap items-center">
+      <button id="new-text-btn" class="px-4 py-2 bg-purple-600 text-black font-medium rounded shadow-typewriter hover:bg-purple-700">New Text</button>
+      <span id="round-info" class="text-lg tracking-typewriter font-typewriter">Round 1 — 5 blanks</span>
+      <button id="hint-btn" class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper disabled:opacity-50" disabled>Hint (3)</button>
+      <button id="submit-btn" class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper disabled:opacity-50" disabled>Submit</button>
+    </div>
+  </header>
+  <main id="app" class="flex-1 overflow-auto p-6 grid grid-rows-[auto_auto_1fr_auto] gap-4">
+    <section id="bibliographic-area" class="p-4 rounded shadow bg-aged-paper ink-ribbon-effect"></section>
+    <section id="game-area" class="prose prose-lg p-4 rounded shadow break-words bg-aged-paper ink-ribbon-effect"></section>
+    <footer id="result" class="text-center text-lg font-medium text-shadow-typewriter"></footer>
+  </main>
+
+  <!-- Settings Footer (Preact Component Mount Point) -->
+  <footer id="settings-footer-container" class="w-full bg-gray-800 text-gray-300 p-4 mt-auto">
+    <!-- Preact Settings Component will be rendered here -->
+  </footer>
+</body>
+</html>
+
+</final_file_content>
+  <!-- Settings Footer (Preact Component Mount Point) -->
+<footer id="settings-footer-container" class="w-full bg-gray-800 text-gray-300 p-4 mt-auto">
+<!-- Preact Settings Component will be rendered here -->
+  </footer>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "es2020", // Modern JavaScript features
+    "module": "esnext", // Use ES modules
+    "moduleResolution": "node", // How modules get resolved
+    "lib": ["dom", "dom.iterable", "esnext"], // Standard libraries available
+    "strict": true, // Enable all strict type-checking options
+    "esModuleInterop": true, // Enables emit interoperability between CommonJS and ES Modules
+    "skipLibCheck": true, // Skip type checking of declaration files
+    "forceConsistentCasingInFileNames": true, // Disallow inconsistently-cased references to the same file
+    "noEmit": true, // Do not emit output (Parcel handles this)
+    "resolveJsonModule": true, // Include modules imported with .json extension
+    "isolatedModules": true, // Ensure each file can be safely transpiled without relying on other imports
+    "jsx": "react-jsx", // Use the new JSX transform
+    "jsxImportSource": "preact", // Specify Preact as the JSX source
+    "baseUrl": "./", // Base directory to resolve non-absolute module names
+    "paths": {
+      "@/*": ["src/*"] // Alias for src directory
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"], // Which files to include
+  "exclude": ["node_modules"] // Which files to exclude
+}

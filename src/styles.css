@@ -1,0 +1,537 @@
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Typewriter Base Styles */
+body {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  color: theme('colors.typewriter-ink');
+  background-color: theme('colors.aged-paper');
+  background-image: theme('backgroundImage.paper-texture');
+  letter-spacing: theme('letterSpacing.typewriter');
+}
+
+/* Uneven Character Effect for Typewriter Look */
+.typewriter-text span {
+  display: inline-block;
+  --tw-uneven-y: calc(random(5) * 0.02rem - 0.04rem);
+}
+
+/* Fix for spacing between words and layout */
+.typewriter-text {
+  word-spacing: 0.2em;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word; /* Add for broader compatibility */
+  line-height: 1.8;
+  margin-bottom: 0.5rem;
+}
+
+/* Ensure text within the welcome overlay wraps correctly */
+#welcome-overlay .typewriter-text {
+  word-break: break-word; /* Prefer break-word for readability */
+  overflow-wrap: break-word; /* Ensure consistency */
+  word-wrap: break-word; /* Ensure consistency */
+}
+
+/* Fix word wrapping */
+.prose {
+  max-width: 100% !important;
+  width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word; /* Add for broader compatibility */
+  word-break: break-word; /* Ensure consistency */
+}
+
+/* Game area formatting */
+#game-area {
+  padding: 1rem !important;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: theme('colors.aged-paper');
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Fix word display */
+span.typewriter-text, p.typewriter-text {
+  display: inline;
+  margin-right: 0;
+}
+
+/* Make instructions stand out */
+/* Removed overstyling */
+/* #welcome-overlay ol li, #welcome-overlay ul li {
+  background-color: #f0e6d2;
+  border-left: 3px solid #8b5cf6;
+  padding: 6px 10px;
+  margin: 8px 0;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+  color: #4b0082;
+  font-weight: 500;
+} */
+
+#welcome-overlay ol, #welcome-overlay ul {
+  margin: 15px 0;
+}
+
+/* Fix word wrapping */
+.prose {
+  max-width: 100% !important;
+  width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* Typewriter Input Field Styling */
+input[type="text"] {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  background-color: transparent;
+  transition: all 0.2s ease;
+  min-width: 5rem;
+  width: auto;
+  padding: 0 0.5rem;
+  margin: 0 0.25rem;
+}
+
+input[type="text"]::placeholder {
+  opacity: 0.5;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-bottom-width: 2px;
+}
+
+/* Typewriter Cursor Animation */
+@keyframes typewriter-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+input[type="text"]:focus::after {
+  content: '|';
+  animation: typewriter-blink 1s step-end infinite;
+}
+
+/* Typewriter Button Styling */
+button {
+  transition: all 0.1s ease;
+  box-shadow: theme('boxShadow.typewriter');
+}
+
+button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: theme('boxShadow.typewriter-pressed');
+}
+
+/* Typewriter Paper and Section Styling */
+.bg-white {
+  background-color: theme('colors.aged-paper');
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Ink Ribbon Effect */
+.ink-ribbon-effect {
+  position: relative;
+}
+
+.ink-ribbon-effect::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 15px,
+    rgba(0, 0, 0, 0.03) 15px,
+    rgba(0, 0, 0, 0.03) 16px
+  );
+  pointer-events: none;
+}
+
+/* Header and Title Styling */
+header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: theme('colors.aged-paper');
+  padding: 1rem;
+}
+
+#game-title {
+  text-shadow: theme('textShadow.typewriter');
+  letter-spacing: 0.1em;
+  color: theme('colors.typewriter-ink');
+}
+
+#header-icon {
+  height: 1.5em; /* Adjust size as needed */
+  vertical-align: middle; /* Align with text */
+  margin-right: 0.5rem; /* Space between icon and title */
+  /* Optional: add subtle styling like a border or shadow if desired */
+}
+
+/* Enhance controls for typewriter look */
+select, button, input[type="text"] {
+  font-family: 'Special Elite', 'Courier New', monospace !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Improve category select truncation */
+#category-select {
+  padding-right: 2rem; /* Add space for the dropdown arrow */
+  max-width: 150px; /* Limit width to prevent excessive growth */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Add ellipsis for truncated text */
+  white-space: nowrap; /* Prevent wrapping */
+}
+
+/* Improve contrast for Author input placeholder */
+#author-input::placeholder {
+  color: theme('colors.typewriter-ink'); /* Use a contrasting color */
+  opacity: 0.8; /* Make it slightly transparent */
+}
+
+/* Improve contrast for New Text button text */
+#new-text-btn {
+  color: theme('colors.aged-paper') !important; /* Change text color to aged paper */
+}
+
+
+/* Responsive header adjustments */
+@media (max-width: 768px) {
+  header .flex.space-x-4 {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  #round-info {
+    font-size: 0.875rem;
+  }
+}
+
+/* Styles for the new bibliographic area */
+#bibliographic-area {
+  font-family: 'Courier New', Courier, monospace; /* Match typewriter theme */
+  color: #222; /* Darker ink color for better contrast */
+  background-color: #fff8e1; /* Lighter aged paper background for better contrast */
+  border: 1px solid #d3c6a8; /* Subtle border */
+  padding: 0.1rem 0.8rem; /* Keep reduced vertical padding */
+  margin-bottom: 0.5rem; /* Keep margin bottom */
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1); /* More subtle shadow */
+  overflow-wrap: break-word; /* Ensure long titles/authors wrap */
+  word-wrap: break-word; /* Ensure long titles/authors wrap */
+  font-size: 1rem; /* Keep increased font size */
+  line-height: 1.2; /* Adjusted line height */
+}
+
+#bibliographic-area p {
+  margin: 0; /* Ensure no margin */
+  padding: 0; /* Ensure no padding */
+  line-height: 1.2; /* Match parent line height */
+  font-size: 1rem; /* Match parent font size */
+  color: #222; /* Ensure text color is applied */
+}
+
+#bibliographic-area em {
+  font-style: italic; /* Keep emphasis for title */
+}
+
+/* Improved contrast for readability */
+.bg-aged-paper-dark {
+  background-color: theme('colors.aged-paper-dark');
+  color: theme('colors.typewriter-ink');
+}
+
+/* Input field styling for header */
+header input[type="text"] {
+  background-color: theme('colors.aged-paper-dark');
+  border-radius: 0.25rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+
+/* Additional Utility Classes */
+@layer utilities {
+  .text-typewriter {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    letter-spacing: theme('letterSpacing.typewriter');
+  }
+
+  .typewriter-key {
+    @apply bg-aged-paper-dark text-typewriter-ink border border-gray-300 shadow-typewriter;
+  }
+
+  .typewriter-key:active:not(:disabled) {
+    @apply shadow-typewriter-pressed;
+  }
+}
+
+/* Visual indicator for hinted blanks */
+input[type="text"].hinted-blank {
+  border-bottom-color: theme('colors.typewriter-ribbon'); /* Use a different color from the theme */
+  border-bottom-style: dotted; /* Change line style */
+}
+
+/* Make buttons consistent size */
+button {
+  min-width: 120px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* Improved overlay styling - more compact with refined aesthetics */
+#welcome-overlay {
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.5); /* Add semi-transparent black background */
+}
+
+#welcome-overlay .bg-aged-paper {
+  border: 1px solid #8b5cf6;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18), 0 0 5px rgba(139, 92, 246, 0.2);
+  border-radius: 8px;
+  max-width: 650px;
+  padding: 1.5rem !important;
+}
+
+/* More compact instruction styling */
+#welcome-overlay h1 {
+  margin-bottom: 1rem !important;
+  font-size: 1.75rem !important;
+}
+
+#welcome-overlay .prose {
+  margin-bottom: 1rem !important;
+}
+
+#welcome-overlay p {
+  margin-bottom: 0.75rem !important;
+}
+
+#welcome-overlay h2 {
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.5rem !important;
+  font-size: 1.25rem !important;
+}
+
+#welcome-overlay ol, #welcome-overlay ul {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+  list-style-position: outside;
+  padding-left: 1.5rem;
+}
+
+/* Clean, minimalist instruction styling */
+#welcome-overlay ol li, #welcome-overlay ul li {
+  padding: 4px 0;
+  margin: 6px 0;
+  color: theme('colors.typewriter-ink'); /* Use typewriter ink color */
+  font-weight: 400; /* Reduce font weight */
+  font-size: 1rem !important; /* Adjust font size */
+  border: none; /* Remove border */
+  background-color: transparent; /* Remove background color */
+  box-shadow: none; /* Remove box shadow */
+  list-style: none; /* Remove default list styles */
+  padding-left: 0; /* Remove default padding */
+}
+
+#welcome-overlay ol li::before, #welcome-overlay ul li::before {
+  content: '> '; /* Add minimalist symbol */
+  color: theme('colors.typewriter-ribbon'); /* Color the symbol */
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
+
+#welcome-overlay button {
+  min-width: 150px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(139, 92, 246, 0.2);
+  padding: 0.5rem 1.25rem;
+  transform: translateY(0);
+  transition: all 0.2s ease;
+}
+
+#welcome-overlay button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(139, 92, 246, 0.3);
+}
+
+/* Normalize header controls */
+header .flex.space-x-4 {
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center; /* Vertically align items */
+}
+
+@media (max-width: 768px) {
+  header .flex.space-x-4 {
+    gap: 0.5rem; /* Reduce gap on smaller screens */
+    flex-direction: column; /* Stack header controls vertically */
+    align-items: stretch; /* Stretch items to fill container width */
+  }
+
+  header .flex.space-x-4 > * {
+    width: 100%; /* Make header controls take full width */
+    margin-bottom: 0.5rem; /* Add spacing between stacked elements */
+  }
+
+  button, select, input[type="text"] {
+    min-width: unset; /* Remove min-width constraint */
+    width: 100%; /* Make buttons and inputs take full width */
+    font-size: 0.9rem;
+    padding: 8px 12px !important;
+    box-sizing: border-box; /* Include padding and border in element's total width */
+  }
+
+  #round-info {
+    text-align: center; /* Center round info */
+    width: 100%;
+  }
+
+  #category-select {
+    max-width: unset; /* Remove max-width constraint */
+  }
+}
+
+/* Ensure game area handles overflow and responsiveness */
+#game-area {
+  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-wrap: break-word; /* Standardize word wrapping */
+  word-break: break-word; /* Ensure long words break */
+}
+
+/* Add responsive base layout */
+@media screen and (max-width: 480px) {
+  html, body {
+    font-size: 14px; /* Slightly smaller base font on very small screens */
+  }
+  
+  .container {
+    padding: 0.5rem !important; /* Reduce padding on small screens */
+  }
+  
+  button {
+    min-width: 100px; /* Allow buttons to be smaller on mobile */
+    min-height: 36px; /* Allow buttons to be smaller on mobile */
+  }
+}
+
+/* Add landscape orientation support */
+@media screen and (max-height: 480px) and (orientation: landscape) {
+  #welcome-overlay .bg-aged-paper {
+    max-height: 80vh; /* Adjust for landscape */
+    width: 85%; /* Make overlay narrower in landscape */
+    padding: 1rem !important; /* Less padding in landscape */
+  }
+  
+  button {
+    min-height: 32px; /* Smaller buttons in landscape */
+  }
+  
+  #game-area, #teaching-area {
+    padding: 0.75rem !important; /* Reduced padding in landscape */
+  }
+  
+  /* Optimize layout for landscape */
+  header .flex.space-x-4 {
+    flex-direction: row !important; /* Keep controls horizontal in landscape */
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  /* Allow better use of horizontal space */
+  header .flex.space-x-4 > * {
+    width: auto !important; /* Don't force full width */
+    margin-right: 0.5rem;
+  }
+}
+
+/* Settings Footer Styles - Compact & Minimalist */
+.settings-footer {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 0;
+}
+
+.settings-header {
+  cursor: pointer;
+  background-color: theme('colors.aged-paper-dark');
+  color: theme('colors.typewriter-ink');
+  padding: 4px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  transition: background-color 0.2s ease;
+  height: 24px;
+}
+
+.minimalist-header {
+  height: 24px;
+}
+
+.settings-header:hover {
+  background-color: theme('colors.aged-paper');
+}
+
+.settings-icon {
+  opacity: 0.8;
+  font-size: 0.8rem;
+  margin-right: 5px;
+}
+
+.settings-content {
+  padding: 10px 15px;
+  background-color: theme('colors.aged-paper-light');
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.settings-footer.expanded .settings-content {
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* Add print styles for better printing */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  #welcome-overlay {
+    display: none !important; /* Hide overlay when printing */
+  }
+  
+  button, header input, select {
+    display: none !important; /* Hide controls when printing */
+  }
+  
+  #game-area, #teaching-area, #bibliographic-area {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 1rem 0 !important;
+  }
+  
+  .typewriter-text {
+    font-family: 'Times New Roman', Times, serif !important; /* Better print font */
+  }
+}

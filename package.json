@@ -1,0 +1,37 @@
+{
+  "name": "cloze",
+  "version": "1.0.0",
+  "description": "Gutenberg-based cloze deletion practice app built with TypeScript",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zmuhls/lm-erasure-game.git"
+  },
+  "homepage": "https://zmuhls.github.io/lm-erasure-game",
+  "scripts": {
+    "dev": "parcel inference.html index.html",
+    "build": "parcel build inference.html index.html --public-url ./",
+    "predeploy": "rm -rf dist && npm run build",
+    "deploy": "gh-pages -d dist"
+  },
+  "keywords": [
+    "typescript",
+    "tailwind",
+    "parcel",
+    "game"
+  ],
+  "author": "Cline",
+  "license": "MIT",
+  "devDependencies": {
+    "@parcel/transformer-typescript-tsc": "^2.15.1",
+    "@preact/compat": "^18.3.1",
+    "@preact/signals": "^2.0.4",
+    "@tailwindcss/typography": "^0.5.13",
+    "autoprefixer": "^10.4.19",
+    "gh-pages": "^6.3.0",
+    "parcel": "^2.12.0",
+    "postcss": "^8.4.38",
+    "preact": "^10.26.6",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.4.5"
+  }
+}
