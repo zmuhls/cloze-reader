@@ -39,16 +39,42 @@
   <title>Cloze Reader</title>
 </head>
 <body class="h-screen w-screen m-0 p-0 flex flex-col text-typewriter">
-  <header class="shadow p-4 flex justify-between items-center bg-aged-paper">
-    <div class="flex items-center">
-      <img id="header-icon" src="icon.png" alt="Cloze Icon" class="mr-2">
+  <header class="shadow p-4 flex flex-col sm:flex-row justify-between items-center bg-aged-paper" role="banner">
+    <div class="flex items-center mb-4 sm:mb-0">
+      <img id="header-icon" src="icon.png" alt="Cloze Icon" class="mr-2 h-8 w-8">
       <h1 id="game-title" class="text-2xl font-bold tracking-wider text-shadow-typewriter">Cloze Reader</h1>
     </div>
-    <div class="flex space-x-4 flex-wrap md:flex-nowrap items-center">
-      <button id="new-text-btn" class="px-4 py-2 bg-purple-600 text-black font-medium rounded shadow-typewriter hover:bg-purple-700">New Text</button>
-      <span id="round-info" class="text-lg tracking-typewriter font-typewriter">Round 1 — 5 blanks</span>
-      <button id="hint-btn" class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper disabled:opacity-50" disabled>Hint (3)</button>
-      <button id="submit-btn" class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper disabled:opacity-50" disabled>Submit</button>
+    <div class="flex flex-wrap justify-center items-center gap-3">
+      <button 
+        id="new-text-btn" 
+        class="px-4 py-2 bg-typewriter-ribbon text-aged-paper font-medium rounded shadow-typewriter hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-typewriter-ink focus:ring-offset-2 transition-all min-w-[120px] min-h-[42px] flex items-center justify-center"
+        aria-label="Get new text passage"
+      >
+        New Text
+      </button>
+      <span 
+        id="round-info" 
+        class="text-lg tracking-typewriter font-typewriter px-3"
+        aria-live="polite"
+      >
+        Round 1 — 5 blanks
+      </span>
+      <button 
+        id="hint-btn" 
+        class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] min-h-[42px] flex items-center justify-center transition-all" 
+        disabled
+        aria-label="Get a hint for a blank"
+      >
+        Hint (3)
+      </button>
+      <button 
+        id="submit-btn" 
+        class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] min-h-[42px] flex items-center justify-center transition-all" 
+        disabled
+        aria-label="Submit your answers"
+      >
+        Submit
+      </button>
     </div>
   </header>
   <main id="app" class="flex-1 overflow-auto p-6 grid grid-rows-[auto_auto_1fr_auto] gap-4">

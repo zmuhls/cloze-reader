@@ -135,6 +135,7 @@ export let round = 1;
 export let blanksCount = 1;
 export let hintsRemaining = 5;
 export let hintedBlanks: Set<string> = new Set();
+export let previousBooks: { title: string; author: string; id: number }[] = [];
 
 // --- DOM Element References ---
 // These will be initialized by a function called from main.ts or passed as arguments.
@@ -206,7 +207,9 @@ export function renderRound() {
         input.dataset.index = String(idx);
         input.dataset.paragraph = String(pIdx);
         input.placeholder = '_____';
-        input.className = 'border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none focus:border-typewriter-ribbon';
+        // Enhanced styling for input boxes
+        input.className = 'border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none focus:border-typewriter-ribbon focus:ring-1 focus:ring-typewriter-ribbon rounded-sm px-1 py-0.5 text-typewriter-ink placeholder-typewriter-ink placeholder-opacity-50';
+
 
         input.addEventListener('keydown', (e) => {
           if (e.key.length === 1) {
@@ -295,8 +298,6 @@ export function renderRound() {
 export function resetGame() {
   if (!domElements) {
     console.error("DOM elements not initialized for gameLogic.resetGame");
-    // Optionally, try to initialize them if a known global cacheDOMElements exists,
-    // or simply return to prevent errors. For now, we'll log and return.
     return;
   }
   const { gameArea, resultArea, roundInfo, bibliographicArea } = domElements;
@@ -309,13 +310,13 @@ export function resetGame() {
   paragraphsWords[1] = [];
   redactedIndices[0] = [];
   redactedIndices[1] = [];
+  previousBooks = []; // Reset previous books on a full game reset
 
   if (gameArea) gameArea.innerHTML = '';
   if (resultArea) resultArea.textContent = '';
   if (roundInfo) roundInfo.textContent = '';
-  if (bibliographicArea) bibliographicArea.innerHTML = ''; // Assuming bibliographicArea might be added to GameDOMElements
+  if (bibliographicArea) bibliographicArea.innerHTML = '';
 
-  // Assuming stopTimer is globally available or will be handled
   if (typeof stopTimer === 'function') {
     stopTimer();
   }
@@ -323,11 +324,7 @@ export function resetGame() {
 }
 
 
-import { fetchGutenbergPassage } from '@/main'; // Temporarily import from main.ts, will refactor later
-
-// Other game logic functions (handleSubmission, etc.) and game state variables
-// will be moved here in subsequent steps.
-// Need to manage exports carefully.
+import { fetchGutenbergPassage } from '@/main'; 
 
 /**
  * Starts a new round of the game by fetching a new passage and rendering it.
@@ -339,40 +336,40 @@ export async function startRound(forceNewPassage: boolean = false) {
   }
   const { gameArea, roundInfo, submitBtn, hintBtn, resultArea, bibliographicArea } = domElements;
 
-
-  hintsRemaining = 3; // Reset hints per round
+  hintsRemaining = 3; 
   if (hintBtn) hintBtn.textContent = `Hint (${hintsRemaining})`;
   if (submitBtn) submitBtn.disabled = true;
   if (hintBtn) hintBtn.disabled = true;
   if (gameArea) gameArea.innerHTML = '<div class="text-center p-4"><p class="text-lg typewriter-text">Fetching new paragraphs from Gutenberg...</p><p class="text-sm mt-2 text-opacity-70">*click* *clack* *ding*</p></div>';
   if (resultArea) resultArea.textContent = '';
   hintedBlanks.clear();
-  if (typeof stopTimer === 'function') { // Check if stopTimer is available
-    stopTimer(); // Stop any existing timer
+  if (typeof stopTimer === 'function') { 
+    stopTimer(); 
   }
 
-
-  // Clear previous bibliographic info
   if (bibliographicArea) {
       bibliographicArea.innerHTML = '';
   }
 
-  if (gameArea) gameArea.innerHTML = '<div class="text-center p-4"><p class="text-lg typewriter-text">Fetching new passage from Gutenberg...</p><p class="text-sm mt-2 text-opacity-70">*click* *clack* *ding*</p></div>';
-  if (resultArea) resultArea.textContent = ''; // Ensure resultArea is checked
-  hintedBlanks.clear();
-  if (submitBtn) submitBtn.disabled = true;
-  if (hintBtn) hintBtn.disabled = true;
-
-  // Get category and author from localStorage
   const category = localStorage.getItem('game_category') || '';
   const author = localStorage.getItem('game_author') || '';
+  const century = localStorage.getItem('game_century') || ''; // Fetch century as well
 
-  // Cache key now includes category and author
-  const cacheKey = `passage_${category || 'any'}_${author || 'any'}`;
+  let cacheKey = `passage_${category || 'any'}_${author || 'any'}_${century || 'any'}`; // Include century in cache key
 
-  // Check cache first (unless forceNewPassage is true)
+  // If all search parameters are empty, it's a "random" request.
+  // Add a random component to the cache key to ensure a fresh fetch for "truly random" initial passages,
+  // unless forceNewPassage is explicitly false (which might be used for specific reloads of the *same* random passage).
+  // However, startRound is usually called with forceNewPassage=true for the very first load via app.tsx.
+  if (!category && !author && !century && forceNewPassage) {
+    cacheKey = `passage_random_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    debugLog("Generated unique cache key for initial random passage:", { cacheKey });
+  }
+
   const cachedPassage = paragraphCache.get(cacheKey);
-  if (!forceNewPassage && cachedPassage) {
+  // For truly random initial fetches, we want to bypass cache even if forceNewPassage wasn't explicitly true,
+  // but the logic above already makes the cacheKey unique, effectively bypassing it.
+  if (!forceNewPassage && cachedPassage && !cacheKey.startsWith('passage_random_')) {
     debugLog("Serving passage from cache", { cacheKey });
     const parsedCache = JSON.parse(cachedPassage);
      if (parsedCache && parsedCache.paragraphs && Array.isArray(parsedCache.paragraphs)) {
@@ -381,21 +378,39 @@ export async function startRound(forceNewPassage: boolean = false) {
             metadata: parsedCache.metadata || null
         };
         if (bibliographicArea && passageData.metadata) {
+            // Add to previous books history if not already there
+            const isAlreadyFetched = previousBooks.some(book => book.id === passageData.metadata!.id);
+            if (!isAlreadyFetched) {
+              previousBooks.unshift(passageData.metadata);
+              if (previousBooks.length > 5) {
+                previousBooks.pop();
+              }
+            }
+
+            let historyHtml = '';
+            if (previousBooks.length > 1) {
+                historyHtml = '<p class="text-xs text-typewriter-ink opacity-60 mt-1">Previously fetched:</p><ul class="text-xs list-disc list-inside opacity-60">';
+                previousBooks.slice(1, 5).forEach(book => {
+                    historyHtml += `<li><a href="https://www.gutenberg.org/ebooks/${book.id}" target="_blank" class="underline hover:text-typewriter-ribbon">${book.title} by ${book.author}</a></li>`;
+                });
+                historyHtml += '</ul>';
+            }
             bibliographicArea.innerHTML = `
-                <p class="text-sm text-typewriter-ink opacity-80 mb-2">
-                    (Cached) <em>${parsedCache.metadata.title}</em> by ${parsedCache.metadata.author} (Gutenberg ID: ${parsedCache.metadata.id})
+                <p class="text-sm text-typewriter-ink opacity-80 mb-1">
+                    (Cached) Currently from: <em><a href="https://www.gutenberg.org/ebooks/${passageData.metadata.id}" target="_blank" class="underline hover:text-typewriter-ribbon">${passageData.metadata.title}</a></em> by ${passageData.metadata.author} (ID: ${passageData.metadata.id})
                 </p>
+                ${historyHtml}
             `;
             setTimeout(() => {
                 if (typeof window !== 'undefined' && (window as any).applyTypewriterEffect) {
-                    const metaElements = bibliographicArea.querySelectorAll('p, em');
+                    const metaElements = bibliographicArea.querySelectorAll('p, em, a, li');
                     metaElements.forEach(el => (window as any).applyTypewriterEffect(el));
                 }
             }, 100);
         }
-        paragraphsWords[0] = passageData.paragraphs[0].split(/\s+/).filter((w: string) => w.length > 0); // Add type annotation
+        paragraphsWords[0] = passageData.paragraphs[0].split(/\s+/).filter((w: string) => w.length > 0);
         paragraphsWords[1] = passageData.paragraphs.length > 1 ?
-          passageData.paragraphs[1].split(/\s+/).filter((w: string) => w.length > 0) : []; // Correct typo and add type annotation
+          passageData.paragraphs[1].split(/\s+/).filter((w: string) => w.length > 0) : [];
 
         redactedIndices[0].length = 0;
         redactedIndices[1].length = 0;
@@ -420,7 +435,7 @@ export async function startRound(forceNewPassage: boolean = false) {
           if (gameArea) gameArea.innerHTML = '<div class="text-center p-4"><p class="text-lg text-red-500 typewriter-text">Could not generate enough blanks from cached passage. Try different criteria or refresh.</p></div>';
           if (submitBtn) submitBtn.disabled = true;
           if (hintBtn) hintBtn.disabled = true;
-          if (typeof stopTimer === 'function') { // Check if stopTimer is available
+          if (typeof stopTimer === 'function') { 
             stopTimer();
           }
           return null;
@@ -438,17 +453,17 @@ export async function startRound(forceNewPassage: boolean = false) {
       debugLog("Cache miss or invalid cache data. Fetching new passage.", { cacheKey });
     }
     
-    debugLog("Fetching new passage from Gutenberg API", { category, author });
   let fetchedPassageData: Awaited<ReturnType<typeof fetchGutenbergPassage>> = null;
   
   try {
-    fetchedPassageData = await fetchGutenbergPassage(category, author);
+    // Pass century to fetchGutenbergPassage and initialize attemptedBookIds
+    fetchedPassageData = await fetchGutenbergPassage(category, author, century, []); 
     
     if (!fetchedPassageData || fetchedPassageData.paragraphs.length === 0) {
-      if (gameArea) gameArea.innerHTML = '<div class="text-center p-4"><p class="text-lg text-red-500 typewriter-text">Could not load a suitable passage. Please check your API key is properly set in settings and try again.</p><p class="text-sm mt-2 typewriter-text">You may need to provide a different category or author.</p></div>';
+      if (gameArea) gameArea.innerHTML = '<div class="text-center p-4"><p class="text-lg text-red-500 typewriter-text">Could not load a suitable passage after multiple attempts. Please check your API key, network, or try different search criteria.</p></div>';
       if (submitBtn) submitBtn.disabled = true;
       if (hintBtn) hintBtn.disabled = true;
-      if (typeof stopTimer === 'function') { // Check if stopTimer is available
+      if (typeof stopTimer === 'function') { 
         stopTimer();
       }
       return;
@@ -465,15 +480,35 @@ export async function startRound(forceNewPassage: boolean = false) {
     paragraphsWords[1] = fetchedPassageData.paragraphs.length > 1 ?
       fetchedPassageData.paragraphs[1].split(/\s+/).filter((w: string) => w.length > 0) : [];
   
-    if (bibliographicArea && fetchedPassageData.metadata) {
+    // Check if fetchedPassageData and its metadata are not null
+    if (bibliographicArea && fetchedPassageData && fetchedPassageData.metadata) {
+        // Add to previous books history
+        const isAlreadyFetched = previousBooks.some(book => book.id === fetchedPassageData!.metadata!.id); // Added non-null assertion as we've checked fetchedPassageData
+        if (!isAlreadyFetched) {
+          previousBooks.unshift(fetchedPassageData.metadata); 
+          if (previousBooks.length > 5) { 
+            previousBooks.pop();
+          }
+        }
+
+        let historyHtml = '';
+        if (previousBooks.length > 1) { 
+            historyHtml = '<p class="text-xs text-typewriter-ink opacity-60 mt-1">Previously fetched:</p><ul class="text-xs list-disc list-inside opacity-60">';
+            previousBooks.slice(1, 5).forEach(book => { 
+                historyHtml += `<li><a href="https://www.gutenberg.org/ebooks/${book.id}" target="_blank" class="underline hover:text-typewriter-ribbon">${book.title} by ${book.author}</a></li>`;
+            });
+            historyHtml += '</ul>';
+        }
+
         bibliographicArea.innerHTML = `
-            <p class="text-sm text-typewriter-ink opacity-80 mb-2">
-                <em>${fetchedPassageData.metadata.title}</em> by ${fetchedPassageData.metadata.author} (Gutenberg ID: ${fetchedPassageData.metadata.id})
+            <p class="text-sm text-typewriter-ink opacity-80 mb-1">
+                Currently from: <em><a href="https://www.gutenberg.org/ebooks/${fetchedPassageData.metadata.id}" target="_blank" class="underline hover:text-typewriter-ribbon">${fetchedPassageData.metadata.title}</a></em> by ${fetchedPassageData.metadata.author} (ID: ${fetchedPassageData.metadata.id})
             </p>
+            ${historyHtml}
         `;
         setTimeout(() => {
             if (typeof window !== 'undefined' && (window as any).applyTypewriterEffect) {
-                const metaElements = bibliographicArea.querySelectorAll('p, em');
+                const metaElements = bibliographicArea.querySelectorAll('p, em, a, li');
                 metaElements.forEach(el => (window as any).applyTypewriterEffect(el));
             }
         }, 100);
@@ -514,7 +549,7 @@ export async function startRound(forceNewPassage: boolean = false) {
     if (gameArea) gameArea.innerHTML = '<div class="text-center p-4"><p class="text-lg text-red-500 typewriter-text">Could not generate enough blanks. Try different criteria or refresh.</p></div>';
     if (submitBtn) submitBtn.disabled = true;
     if (hintBtn) hintBtn.disabled = true;
-    if (typeof stopTimer === 'function') { // Check if stopTimer is available
+    if (typeof stopTimer === 'function') { 
       stopTimer();
     }
     return;
@@ -535,12 +570,10 @@ export async function handleSubmission(timedOut = false) {
   }
   const { gameArea, submitBtn, hintBtn, resultArea } = domElements;
 
-  if (typeof stopTimer === 'function') { // Check if stopTimer is available
-    stopTimer(); // Stop the timer immediately on submission
+  if (typeof stopTimer === 'function') { 
+    stopTimer(); 
   }
 
-
-  // Add typewriter sound effect for submit (if desired)
   const submitSound = () => {
     // Optional: Add typewriter 'ding' sound effect here
   };
@@ -550,31 +583,29 @@ export async function handleSubmission(timedOut = false) {
   let correctCount = 0;
   let totalCount = 0;
 
-  // Reveal all answers and count correct ones
   inputs.forEach(input => {
     totalCount++;
     const paragraphIdx = Number(input.dataset.paragraph || '0');
     const wordIdx = Number(input.dataset.index);
 
     const originalWord = paragraphsWords[paragraphIdx][wordIdx];
-    const guessedWord = input.value.trim(); // Keep original case for display
+    const guessedWord = input.value.trim(); 
 
     const originalWordClean = originalWord.replace(/[^\w\s'-]/g, '').toLowerCase();
     const guessedWordClean = guessedWord.toLowerCase();
 
     const wordSpan = document.createElement('span');
-    wordSpan.className = 'typewriter-text font-bold'; // Make revealed words bold
+    wordSpan.className = 'typewriter-text font-bold'; 
 
     if (guessedWordClean === originalWordClean) {
       correctCount++;
-      wordSpan.textContent = originalWord + ' '; // Show correct word
-      wordSpan.classList.add('text-green-700'); // Green for correct
+      wordSpan.textContent = originalWord + ' '; 
+      wordSpan.classList.add('text-green-700'); 
     } else {
-      wordSpan.textContent = `${guessedWord} [${originalWord}] `; // Show guess and correct answer
-      wordSpan.classList.add('text-red-700'); // Red for incorrect
+      wordSpan.textContent = `${guessedWord} [${originalWord}] `; 
+      wordSpan.classList.add('text-red-700'); 
     }
 
-    // Replace the input element with the revealed word span
     input.parentElement?.insertBefore(wordSpan, input);
     input.remove();
   });
@@ -590,25 +621,20 @@ export async function handleSubmission(timedOut = false) {
     resultArea.classList.add(correctCount >= neededToPass ? 'text-green-700' : 'text-red-700', 'text-shadow-typewriter');
   }
 
-  // Increment round and blanks count only on success
   if (correctCount >= neededToPass) {
       round++;
       blanksCount++;
       if (resultArea) resultArea.textContent += ` Starting Round ${round} with ${blanksCount} blanks in 8 seconds...`;
   } else {
-      // If failed, stay on the same number of blanks for the next round
       if (resultArea) resultArea.textContent += ` Getting a new passage in 8 seconds...`;
   }
 
   if (submitBtn) submitBtn.disabled = true;
   if (hintBtn) hintBtn.disabled = true;
 
-  // Start the next round after a delay
   if (correctCount >= neededToPass) {
-    // If successful, we can use cached passages
     setTimeout(() => startRound(false), 8000);
   } else {
-    // If failed, force a new passage rather than reusing the same one
     setTimeout(() => startRound(true), 8000);
   }
 }

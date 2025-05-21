@@ -64,14 +64,16 @@ function logToolCall(message: string, data: any): void {
  * Calls the OpenRouter LLM API with the given messages and tools.
  * @param messages Array of messages for the LLM.
  * @param currentTools Optional array of tool definitions for the LLM.
+ * @param temperature Optional temperature setting for the LLM.
  * @returns A promise that resolves to the assistant's response message.
  */
-export async function callLLM(messages: OpenRouterMessage[], currentTools?: ToolDefinition[]): Promise<OpenRouterMessage> {
+export async function callLLM(messages: OpenRouterMessage[], currentTools?: ToolDefinition[], temperature?: number): Promise<OpenRouterMessage> {
   const body: {
     model: string;
     messages: OpenRouterMessage[];
     tools?: ToolDefinition[];
     tool_choice?: 'auto' | 'none' | { type: string; function: { name: string } };
+    temperature?: number;
   } = {
     model: 'google/gemini-flash-1.5:online', // Using a web-enabled Gemini model
     messages,
@@ -79,6 +81,11 @@ export async function callLLM(messages: OpenRouterMessage[], currentTools?: Tool
     // unless we want to customize search_prompt or max_results.
     // For now, relying on default :online behavior.
   };
+
+  if (temperature !== undefined) {
+    body.temperature = temperature;
+    debugLog("LLM Service: Using custom temperature", temperature);
+  }
 
   // If tools are provided, add them. Otherwise, the model will rely on web search.
   if (currentTools && currentTools.length > 0) {
@@ -202,15 +209,16 @@ export async function getToolResponse(assistantResponse: OpenRouterMessage): Pro
  * Runs an agentic loop with the LLM, handling tool calls.
  * @param initialMessages The initial set of messages to start the loop.
  * @param loopTools The tools available for the LLM to use in this loop.
+ * @param temperature Optional temperature setting for the LLM calls within the loop.
  * @returns A promise that resolves to the final assistant content or an error message.
  */
-export async function runAgenticLoop(initialMessages: OpenRouterMessage[], loopTools: ToolDefinition[]): Promise<string | null> {
+export async function runAgenticLoop(initialMessages: OpenRouterMessage[], loopTools: ToolDefinition[], temperature?: number): Promise<string | null> {
   let messages: OpenRouterMessage[] = [...initialMessages];
   const MAX_ITERATIONS = 5; // Prevent infinite loops
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     debugLog(`LLM Service: Agentic Loop Iteration ${i + 1}`);
-    const assistantResponse = await callLLM(messages, loopTools);
+    const assistantResponse = await callLLM(messages, loopTools, temperature); // Pass temperature
     messages.push(assistantResponse);
 
     if (assistantResponse.tool_calls && assistantResponse.tool_calls.length > 0) {
