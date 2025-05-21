@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang=en><meta name=viewport content="width=device-width, initial-scale=1"><link rel=stylesheet href=inference.24c13949.css><script type=module src=inference.39e3d91a.js></script><title>LM Inference Game</title><body class="bg-gray-50 flex flex-col h-screen m-0 p-0 w-screen">
+  <header class="bg-white flex items-center justify-between p-4 shadow">
+    <h1 id=game-title class="font-bold text-2xl">LM Inference Game</h1>
+    <div class="flex space-x-4">
+      <button id=settings-btn class="bg-gray-600 hover:bg-gray-700 px-3 py-1 rounded text-white">⚙️ Settings</button>
+      <span id=round-info class=text-lg></span>
+      <button id=hint-btn class="bg-green-600 px-3 py-1 rounded text-white" disabled>Hint (3)</button>
+      <button id=submit-btn class="bg-blue-600 disabled:opacity-50 px-4 py-2 rounded text-white" disabled>Submit</button>
+    </div>
+  </header>
+  <main id=app class="flex-1 gap-4 grid grid-rows-[auto_1fr_auto] overflow-auto p-6">
+    <section id=game-area class="bg-white break-words p-4 prose prose-lg rounded shadow"></section>
+    <section id=teaching-area class="bg-white hidden p-4 prose prose-md rounded shadow"></section>
+    <footer id=result class="font-medium text-center text-lg"></footer>
+  </main>
+
+  
+  
+  
+  <div id=settings-modal class="bg-black bg-opacity-50 fixed flex hidden inset-0 items-center justify-center z-50">
+    <div class="bg-white max-w-md p-6 rounded-lg shadow-lg w-full">
+      <h2 class="font-bold mb-4 text-xl">Game Settings</h2>
+      
+      <div class=mb-4>
+        <label for=api-key-input class="block font-medium mb-1 text-gray-700 text-sm">
+          OpenRouter API Key
+        </label>
+        <input id=api-key-input class="border border-gray-300 focus:border-blue-500 focus:outline-none focus:ring-blue-500 px-3 py-2 rounded-md shadow-sm w-full" placeholder=sk-or-v1-...>
+        <p class="mt-1 text-gray-500 text-sm">Get your API key from <a href=https://openrouter.ai/keys target=_blank class="hover:underline text-blue-500">OpenRouter.ai</a></p>
+      </div>
+      
+      <div class="flex justify-end space-x-2">
+        <button id=settings-cancel class="bg-white border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium hover:bg-gray-50 px-4 py-2 rounded-md shadow-sm text-gray-700 text-sm">
+          Cancel
+        </button>
+        <button id=settings-save class="bg-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium hover:bg-blue-700 px-4 py-2 rounded-md shadow-sm text-sm text-white">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+
