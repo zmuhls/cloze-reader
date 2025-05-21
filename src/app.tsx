@@ -5,6 +5,7 @@ import { WelcomeOverlay } from './components/welcome/WelcomeOverlay';
 import { apiKeySignal } from './components/settings/ApiConfiguration';
 import { categorySignal, authorSignal, centurySignal } from './components/settings/QueryOptions';
 import { startRound } from './services/gameLogic';
+import { cacheDOMElements } from './main'; // Import cacheDOMElements
 
 console.log("APP.TSX: Script loading");
 
@@ -65,6 +66,11 @@ const App = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   // isFirstLoad and the related useEffect are no longer needed as welcome is always shown first
   // const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  // Cache DOM elements after initial render
+  useEffect(() => {
+    cacheDOMElements();
+  }, []); // Empty dependency array means this runs once after the initial render
 
   // Listen to settings changes
   useEffect(() => {

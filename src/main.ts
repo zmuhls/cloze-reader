@@ -151,8 +151,8 @@ Throughout history, literature has served as a mirror reflecting the values, con
       debugLog("Specific criteria provided: using standard query string.");
     } else {
       // For the initial fetch when no user settings are provided,
-      // use a more specific instruction to encourage true randomness and variety.
-      baseQueryInstruction = "from a random book in the catalogue, increasing variety and diverse selections, and avoiding the most popular books on Gutenberg. NEVER REPEAT A BOOK ID!";
+      // use a more specific instruction to encourage randomness and variety.
+      baseQueryInstruction = "from a random book in the catalogue, increasing variety and diverse selections, and avoiding the most popular books on Gutenberg. Never repeat the same book or passage in the same session";
       debugLog("No specific criteria: using new enhanced random query string for initial fetch.");
     }
     
@@ -176,7 +176,7 @@ ID: [Book ID]
 Passage:
 [The passage text]
 
-If no passage can be found, please indicate that. Focus on returning a passage, even if all criteria cannot be perfectly met.`;
+If no passage can be found, please indicate that. Focus on returning a passage, even if all criteria cannot be met.`;
 
     const messages: OpenRouterMessage[] = [
       { role: 'system', content: 'You are an assistant that helps find and display either random or queried passages from Project Gutenberg. Please provide the passage text along with its title, author, and Project Gutenberg ID if available. Prioritize finding a passage, even if specific search criteria (like category, author, or century) cannot all be met. Avoid adding commentary or analysis not present in the original text.Never fetch the same passage or Gutenberg ID twice, striving for selection variety.' },
@@ -242,43 +242,67 @@ If no passage can be found, please indicate that. Focus on returning a passage, 
           continue; // Next attempt
       }
 
+      // Attempt to preserve original formatting, especially for poetry
       let paragraphs = passageText
-        .split(/\n\s*\n/)
+        .replace(/\r\n/g, '\n') // Standardize line endings
+        .split(/\n{2,}/) // Split by two or more newlines (handles most paragraphs and stanzas)
         .map((p: string) => p.trim())
-        .filter((p: string) => p.length > 150 && !p.startsWith('Project Gutenberg') && !p.startsWith('***') && !p.includes('*** END OF ') && !p.startsWith('THE END') && !p.includes('www.gutenberg.org') && !/^\*+$/.test(p))
-        .slice(0, 10);
-      
+        .filter((p: string) => {
+          // Filter out short lines, metadata, and project Gutenberg specific text
+          const isMetadata = p.startsWith('Project Gutenberg') || p.startsWith('***') || p.includes('*** END OF ') || p.startsWith('THE END') || p.includes('www.gutenberg.org') || /^\*+$/.test(p);
+          const isTooShort = p.split(/\s+/).length < 10; // Filter paragraphs with less than 10 words
+
+          // Heuristic to detect potential poetry or formatted text:
+          // Check if lines within the "paragraph" are relatively short and consistent in length
+          const lines = p.split('\n').filter(line => line.trim().length > 0);
+          const avgLineLength = lines.reduce((sum, line) => sum + line.trim().length, 0) / lines.length;
+          const isPotentiallyPoetry = lines.length > 3 && avgLineLength < 60; // More than 3 lines and average line length less than 60
+
+          return !isMetadata && (!isTooShort || isPotentiallyPoetry); // Keep if not metadata and either long enough or potentially poetry
+        })
+        .slice(0, 10); // Take up to 10 potential paragraphs
+
+      // If we don't have enough paragraphs, try a more aggressive split (less likely to preserve poetry)
       if (paragraphs.length < 2) {
         debugLog(`Attempt ${attempt + 1}: First parsing didn't yield enough paragraphs, trying alternative.`);
         paragraphs = passageText
           .replace(/\r\n/g, '\n')
-          .split(/(?:\n\s*){2,}/)
-          .map((p: string) => p.replace(/\n/g, ' ').trim())
-          .filter((p: string) => p.length > 150 && !p.includes('Project Gutenberg'))
+          .split(/\n/) // Split by single newlines
+          .map((p: string) => p.trim())
+          .filter((p: string) => p.length > 100 && !p.includes('Project Gutenberg')) // Filter for longer lines/paragraphs
           .slice(0, 10);
       }
-      
-      paragraphs.sort((a, b) => {
-        const scoreA = Math.min(a.length, 1000) - Math.max(0, 2000 - a.length) + (a.match(/[.!?][\s"']/) ? 200 : 0);
-        const scoreB = Math.min(b.length, 1000) - Math.max(0, 2000 - b.length) + (b.match(/[.!?][\s"']/) ? 200 : 0);
-        return scoreB - scoreA;
-      });
-      
-      paragraphs = paragraphs.slice(0, 2);
-      
+
+      // Sort by length to prioritize longer paragraphs, but keep original order for poetry
+      // Simple heuristic: if a paragraph has many short lines, assume it's poetry and don't sort it by length
+      const isLikelyPoetry = (p: string) => {
+          const lines = p.split('\n').filter(line => line.trim().length > 0);
+          const avgLineLength = lines.reduce((sum, line) => sum + line.trim().length, 0) / lines.length;
+          return lines.length > 3 && avgLineLength < 60;
+      };
+
+      const proseParagraphs = paragraphs.filter(p => !isLikelyPoetry(p));
+      const poetryParagraphs = paragraphs.filter(isLikelyPoetry);
+
+      proseParagraphs.sort((a, b) => b.length - a.length); // Sort prose by length
+
+      // Combine, prioritizing poetry if present, then longer prose
+      paragraphs = [...poetryParagraphs, ...proseParagraphs].slice(0, 2);
+
+
       if (paragraphs.length === 0) {
         debugLog(`Attempt ${attempt + 1}: Failed to extract suitable paragraphs after all parsing attempts.`);
       }
 
       // If we have at least one good paragraph, proceed. Otherwise, retry.
-      if (paragraphs.length > 0) { // Changed from paragraphs.length < 2 to paragraphs.length > 0 for success condition
+      if (paragraphs.length > 0) {
         console.log(`Attempt ${attempt + 1}: Successfully extracted ${paragraphs.length} paragraphs.`);
         return {
           paragraphs: paragraphs,
-          metadata: { 
+          metadata: {
             title: bookTitle,
             author: bookAuthor,
-            id: bookId !== null ? bookId : 0 
+            id: bookId !== null ? bookId : 0
           }
         };
       } else {
@@ -329,7 +353,7 @@ function querySelectorSafe<T extends Element>(selector: string, container: Docum
     return element as T;
 }
 
-function cacheDOMElements() {
+export function cacheDOMElements() {
     try {
         bibliographicArea = querySelectorSafe<HTMLElement>('#bibliographic-area') || document.createElement('div');
         gameArea = querySelectorSafe<HTMLElement>('#game-area') || document.createElement('div');
