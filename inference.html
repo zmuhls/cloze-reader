@@ -1,39 +1,47 @@
-<!DOCTYPE html><html lang=en><meta name=viewport content="width=device-width, initial-scale=1"><link rel=stylesheet href=inference.24c13949.css><script type=module src=inference.39e3d91a.js></script><title>LM Inference Game</title><body class="bg-gray-50 flex flex-col h-screen m-0 p-0 w-screen">
-  <header class="bg-white flex items-center justify-between p-4 shadow">
-    <h1 id=game-title class="font-bold text-2xl">LM Inference Game</h1>
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Import the CSS and TypeScript via Parcel bundling -->
+  <link rel="stylesheet" href="/inference.4d663569.css">
+  <script type="module" src="/inference.0f289648.js"></script>
+  <title>LM Inference Game</title>
+</head>
+<body class="h-screen w-screen m-0 p-0 bg-gray-50 flex flex-col">
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 id="game-title" class="text-2xl font-bold">LM Inference Game</h1>
     <div class="flex space-x-4">
-      <button id=settings-btn class="bg-gray-600 hover:bg-gray-700 px-3 py-1 rounded text-white">⚙️ Settings</button>
-      <span id=round-info class=text-lg></span>
-      <button id=hint-btn class="bg-green-600 px-3 py-1 rounded text-white" disabled>Hint (3)</button>
-      <button id=submit-btn class="bg-blue-600 disabled:opacity-50 px-4 py-2 rounded text-white" disabled>Submit</button>
+      <button id="settings-btn" class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700">⚙️ Settings</button>
+      <span id="round-info" class="text-lg"></span>
+      <button id="hint-btn" class="px-3 py-1 bg-green-600 text-white rounded" disabled="">Hint (3)</button>
+      <button id="submit-btn" class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50" disabled="">Submit</button>
     </div>
   </header>
-  <main id=app class="flex-1 gap-4 grid grid-rows-[auto_1fr_auto] overflow-auto p-6">
-    <section id=game-area class="bg-white break-words p-4 prose prose-lg rounded shadow"></section>
-    <section id=teaching-area class="bg-white hidden p-4 prose prose-md rounded shadow"></section>
-    <footer id=result class="font-medium text-center text-lg"></footer>
+  <main id="app" class="flex-1 overflow-auto p-6 grid grid-rows-[auto_1fr_auto] gap-4">
+    <section id="game-area" class="prose prose-lg bg-white p-4 rounded shadow break-words"></section>
+    <section id="teaching-area" class="prose prose-md bg-white p-4 rounded shadow hidden"></section>
+    <footer id="result" class="text-center text-lg font-medium"></footer>
   </main>
 
+  <!-- No inline script needed - all functionality is in the imported TypeScript file -->
   
-  
-  
-  <div id=settings-modal class="bg-black bg-opacity-50 fixed flex hidden inset-0 items-center justify-center z-50">
-    <div class="bg-white max-w-md p-6 rounded-lg shadow-lg w-full">
-      <h2 class="font-bold mb-4 text-xl">Game Settings</h2>
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+      <h2 class="text-xl font-bold mb-4">Game Settings</h2>
       
-      <div class=mb-4>
-        <label for=api-key-input class="block font-medium mb-1 text-gray-700 text-sm">
+      <div class="mb-4">
+        <label for="api-key-input" class="block text-sm font-medium text-gray-700 mb-1">
           OpenRouter API Key
         </label>
-        <input id=api-key-input class="border border-gray-300 focus:border-blue-500 focus:outline-none focus:ring-blue-500 px-3 py-2 rounded-md shadow-sm w-full" placeholder=sk-or-v1-...>
-        <p class="mt-1 text-gray-500 text-sm">Get your API key from <a href=https://openrouter.ai/keys target=_blank class="hover:underline text-blue-500">OpenRouter.ai</a></p>
+        <input type="text" id="api-key-input" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="sk-or-v1-...">
+        <p class="mt-1 text-sm text-gray-500">Get your API key from <a href="https://openrouter.ai/keys" target="_blank" class="text-blue-500 hover:underline">OpenRouter.ai</a></p>
       </div>
       
       <div class="flex justify-end space-x-2">
-        <button id=settings-cancel class="bg-white border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium hover:bg-gray-50 px-4 py-2 rounded-md shadow-sm text-gray-700 text-sm">
+        <button id="settings-cancel" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
           Cancel
         </button>
-        <button id=settings-save class="bg-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium hover:bg-blue-700 px-4 py-2 rounded-md shadow-sm text-sm text-white">
+        <button id="settings-save" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
           Save
         </button>
       </div>
@@ -41,3 +49,4 @@
   </div>
 
 
+</body></html>
