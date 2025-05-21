@@ -61,20 +61,10 @@ const startGameRound = (forceNewPassage = true) => {
 
 // Main application component
 const App = () => {
-  // Start with welcome hidden in remote interface for better UX flow
-  const [showWelcome, setShowWelcome] = useState(!isRemoteInterface);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-
-  // Auto-start with fetching a passage in remote interfaces
-  useEffect(() => {
-    if (isRemoteInterface && isFirstLoad) {
-      setIsFirstLoad(false);
-      // Small delay to ensure DOM is ready
-      setTimeout(() => {
-        startGameRound(true);
-      }, 100);
-    }
-  }, [isRemoteInterface, isFirstLoad]);
+  // Always show welcome overlay initially
+  const [showWelcome, setShowWelcome] = useState(true);
+  // isFirstLoad and the related useEffect are no longer needed as welcome is always shown first
+  // const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   // Listen to settings changes
   useEffect(() => {
