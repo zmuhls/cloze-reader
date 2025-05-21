@@ -78,7 +78,11 @@ export function chooseRedactions(words: string[], count: number): number[] {
   ]);
 
   const scoredWords: ScoredWord[] = words.map((word, index) => {
-    const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
+    // Separate word from trailing punctuation
+    const punctuationMatch = word.match(/([.,!?;:]+)$/);
+    const trailingPunctuation = punctuationMatch ? punctuationMatch[1] : '';
+    const cleanWord = word.replace(/[.,!?;:]+$/, '').toLowerCase().replace(/[^\w]/g, '');
+
     let score = 0;
     score += cleanWord.length * 2;
     if (functionWords.has(cleanWord)) {
@@ -208,7 +212,12 @@ export function renderRound() {
         input.dataset.paragraph = String(pIdx);
         input.placeholder = '_____';
         // Enhanced styling for input boxes
-        input.className = 'border-b-2 border-typewriter-ink w-24 mx-1 text-center bg-transparent focus:outline-none focus:border-typewriter-ribbon focus:ring-1 focus:ring-typewriter-ribbon rounded-sm px-1 py-0.5 text-typewriter-ink placeholder-typewriter-ink placeholder-opacity-50';
+        // Determine approximate width based on original word length (including punctuation)
+        const originalWordWithPunctuation = paragraphsWords[pIdx][idx];
+        const approxWidth = Math.max(5, originalWordWithPunctuation.length * 8); // Minimum width 5 characters, 8px per char approx
+
+        input.className = `border-b-2 border-typewriter-ink mx-1 text-center bg-transparent focus:outline-none focus:border-typewriter-ribbon focus:ring-1 focus:ring-typewriter-ribbon rounded-sm px-1 py-0.5 text-typewriter-ink placeholder-typewriter-ink placeholder-opacity-50`;
+        input.style.width = `${approxWidth}px`;
 
 
         input.addEventListener('keydown', (e) => {
@@ -238,6 +247,7 @@ export function renderRound() {
               const originalWord = paragraphsWords[paragraphIdx][wordIdx];
 
               if (originalWord) {
+                // Include punctuation in hint length
                 const hintText = `Starts with "${originalWord[0]}", length ${originalWord.length}.`;
                 const hintDiv = document.createElement('div');
                 hintDiv.className = 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50';
@@ -589,21 +599,22 @@ export async function handleSubmission(timedOut = false) {
     const wordIdx = Number(input.dataset.index);
 
     const originalWord = paragraphsWords[paragraphIdx][wordIdx];
-    const guessedWord = input.value.trim(); 
+    const guessedWord = input.value.trim();
 
-    const originalWordClean = originalWord.replace(/[^\w\s'-]/g, '').toLowerCase();
+    const originalWordClean = originalWord.replace(/[.,!?;:]+$/, '').toLowerCase().replace(/[^\w\s'-]/g, '');
     const guessedWordClean = guessedWord.toLowerCase();
+    const trailingPunctuation = originalWord.match(/([.,!?;:]+)$/)?.[1] || '';
 
     const wordSpan = document.createElement('span');
-    wordSpan.className = 'typewriter-text font-bold'; 
+    wordSpan.className = 'typewriter-text font-bold';
 
     if (guessedWordClean === originalWordClean) {
       correctCount++;
-      wordSpan.textContent = originalWord + ' '; 
-      wordSpan.classList.add('text-green-700'); 
+      wordSpan.textContent = originalWordClean + trailingPunctuation + ' '; // Add punctuation back
+      wordSpan.classList.add('text-green-700');
     } else {
-      wordSpan.textContent = `${guessedWord} [${originalWord}] `; 
-      wordSpan.classList.add('text-red-700'); 
+      wordSpan.textContent = `${guessedWord} [${originalWordClean}${trailingPunctuation}] `; // Add punctuation back to correction
+      wordSpan.classList.add('text-red-700');
     }
 
     input.parentElement?.insertBefore(wordSpan, input);
