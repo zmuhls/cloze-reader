@@ -160,11 +160,11 @@
       });
     }
   }
-})({"aKmT1":[function(require,module,exports,__globalThis) {
+})({"jLiUF":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 1234;
+var HMR_SERVER_PORT = 61864;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "439701173a9199ea";
 var HMR_USE_SSE = false;
@@ -2682,6 +2682,6 @@ const WelcomeOverlay = ({ onStart })=>{
     });
 };
 
-},{"preact/jsx-runtime":"jBtcg","preact/hooks":"83L4j","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["aKmT1","9T1gr"], "9T1gr", "parcelRequired201", {})
+},{"preact/jsx-runtime":"jBtcg","preact/hooks":"83L4j","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["jLiUF","9T1gr"], "9T1gr", "parcelRequired201", {})
 
 //# sourceMappingURL=cloze-reader.99b9cdd5.js.map
