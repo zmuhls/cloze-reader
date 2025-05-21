@@ -276,7 +276,7 @@ select, button, input[type="text"] {
   box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1); /* More subtle shadow */
   overflow-wrap: break-word; /* Ensure long titles/authors wrap */
   word-wrap: break-word; /* Ensure long titles/authors wrap */
-  font-size: 1rem; /* Keep increased font size */
+  font-size: 1.2rem; /* Increased font size */
   line-height: 1.2; /* Adjusted line height */
 }
 
@@ -284,7 +284,7 @@ select, button, input[type="text"] {
   margin: 0; /* Ensure no margin */
   padding: 0; /* Ensure no padding */
   line-height: 1.2; /* Match parent line height */
-  font-size: 1rem; /* Match parent font size */
+  font-size: 1.2rem; /* Increased font size */
   color: #222; /* Ensure text color is applied */
 }
 
@@ -524,7 +524,7 @@ header .flex.space-x-4 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
+  font-size: 1.1rem;
   transition: background-color 0.2s ease;
   height: 24px;
 }
@@ -539,7 +539,7 @@ header .flex.space-x-4 {
 
 .settings-icon {
   opacity: 0.8;
-  font-size: 0.8rem;
+  font-size: 1.1rem;
   margin-right: 5px;
 }
 
