@@ -158,14 +158,14 @@ Throughout history, literature has served as a mirror reflecting the values, con
     
     let retryInstructions = "";
     if (attempt > 0) {
-      retryInstructions = ` This is attempt ${attempt + 1}. Please ensure you select a *different* book than previous attempts.`;
+      retryInstructions = ` This is attempt ${attempt + 1}. Please ensure you select a *different* book than previous cached attempts.`;
     }
     if (attemptedBookIds.length > 0) {
       retryInstructions += ` Avoid Project Gutenberg IDs: ${attemptedBookIds.join(', ')}.`;
     }
     
-    const userQuery = `Please provide a short literary passage (2-3 paragraphs) from Project Gutenberg.
-${baseQueryInstruction ? `Ideally, the passage should be ${baseQueryInstruction}.` : 'The passage can be from any classic literary work.'}
+    const userQuery = `Please provide a short  passage (2-3 paragraphs) from Project Gutenberg.
+${baseQueryInstruction ? `Ideally, the passage should be ${baseQueryInstruction}.` : 'The passage can be from any work for the Gutenberg project catalogue.'}
 ${retryInstructions}
 Include the title, author, and Project Gutenberg ID if available.
 
@@ -179,7 +179,7 @@ Passage:
 If no passage can be found, please indicate that. Focus on returning a passage, even if all criteria cannot be perfectly met.`;
 
     const messages: OpenRouterMessage[] = [
-      { role: 'system', content: 'You are an assistant that helps find and display either random or queried passages from Project Gutenberg. Please provide the passage text along with its title, author, and Project Gutenberg ID if available. Prioritize finding a passage, even if specific search criteria (like category, author, or century) cannot all be met. Avoid adding commentary or analysis not present in the original text.' },
+      { role: 'system', content: 'You are an assistant that helps find and display either random or queried passages from Project Gutenberg. Please provide the passage text along with its title, author, and Project Gutenberg ID if available. Prioritize finding a passage, even if specific search criteria (like category, author, or century) cannot all be met. Avoid adding commentary or analysis not present in the original text.Never fetch the same passage or Gutenberg ID twice, striving for selection variety.' },
       { role: 'user', content: userQuery }
     ];
 

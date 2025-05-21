@@ -136,9 +136,7 @@ input:focus-visible,
 select:focus-visible,
 a:focus-visible {
   outline: none;
-  ring: 2px;
-  ring-color: theme('colors.typewriter-ribbon');
-  ring-offset: 2px;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px theme('colors.typewriter-ribbon');
 }
 
 /* Button variants */
