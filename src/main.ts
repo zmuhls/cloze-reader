@@ -152,7 +152,7 @@ Throughout history, literature has served as a mirror reflecting the values, con
     } else {
       // For the initial fetch when no user settings are provided,
       // use a more specific instruction to encourage true randomness and variety.
-      baseQueryInstruction = "from a truly random book in classic literature, prioritizing high variety and diverse selections. Please try to pick something unexpected or less common to ensure a unique experience.";
+      baseQueryInstruction = "from a random book in the catalogue, increasing variety and diverse selections, and avoiding the most popular books on Gutenberg. NEVER REPEAT A BOOK ID!";
       debugLog("No specific criteria: using new enhanced random query string for initial fetch.");
     }
     
@@ -179,13 +179,13 @@ Passage:
 If no passage can be found, please indicate that. Focus on returning a passage, even if all criteria cannot be perfectly met.`;
 
     const messages: OpenRouterMessage[] = [
-      { role: 'system', content: 'You are an assistant that helps find and display literary passages from Project Gutenberg. Please provide the passage text along with its title, author, and Project Gutenberg ID if available. Prioritize finding a passage, even if specific search criteria (like category, author, or century) are suggestions and cannot all be met. Avoid adding commentary or analysis not present in the original text.' },
+      { role: 'system', content: 'You are an assistant that helps find and display either random or queried passages from Project Gutenberg. Please provide the passage text along with its title, author, and Project Gutenberg ID if available. Prioritize finding a passage, even if specific search criteria (like category, author, or century) cannot all be met. Avoid adding commentary or analysis not present in the original text.' },
       { role: 'user', content: userQuery }
     ];
 
     try {
       // Determine temperature: higher for purely random, default otherwise
-      const temperature = (queryParts.length === 0) ? 1.2 : undefined;
+      const temperature = (queryParts.length === 0) ? 1.4 : undefined;
       debugLog(`LLM call (attempt ${attempt + 1}) with temperature: ${temperature === undefined ? 'default' : temperature}`);
       const llmResponseContent = await runAgenticLoop(messages, [], temperature); 
 
