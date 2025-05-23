@@ -118,18 +118,7 @@ export const ApiConfiguration: FunctionComponent<ApiConfigurationProps> = ({
       <p className="text-sm mt-2 text-typewriter-ink opacity-80">
         {isUsingUserProvidedApiKey() 
           ? "Custom API key is being used" 
-          : "Using default API key. Get your own at "}
-        {!isUsingUserProvidedApiKey() && 
-          <a 
-            href="https://openrouter.ai" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="underline hover:text-typewriter-ribbon focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon rounded"
-            aria-label="Visit OpenRouter website"
-          >
-            openrouter.ai
-          </a>
-        }
+          : "Using default API key. Get your own at openrouter.ai"}
       </p>
       {message && <p className={`mt-2 text-sm ${messageClass}`} role="status">{message}</p>}
     </div>

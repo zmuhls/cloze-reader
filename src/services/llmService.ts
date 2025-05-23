@@ -46,12 +46,40 @@ export interface ToolDefinition {
 // --- Tool Definitions & Mappings (specific to LLM service) ---
 // Tools for Gutenberg search and text fetching are removed as the :online model handles this.
 export const tools: ToolDefinition[] = [
-  // No tools defined here anymore, or only non-Gutenberg related tools if any exist.
+  {
+    type: 'function',
+    function: {
+      name: 'getWordAnalysis',
+      description: 'Provides a concise analytical description of a missing word and its role in the sentence.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sentence: {
+            type: 'string',
+            description: 'The full sentence containing the missing word.'
+          },
+          word: {
+            type: 'string',
+            description: 'The missing word to analyze.'
+          }
+        },
+        required: ['sentence', 'word']
+      }
+    }
+  }
 ];
 
 // TOOL_MAPPING is no longer needed if no tools are defined, or will only contain non-Gutenberg tools.
 export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
-  // Empty or contains other tools
+  async getWordAnalysis(args: { sentence: string; word: string }): Promise<object> {
+    // Compose prompt for the tool call
+    const { sentence, word } = args;
+    // For demonstration, just return a dummy analysis. In real use, this would call an API or LLM.
+    // Here, we simulate a call to OpenRouter with function calling.
+    return {
+      analysis: `The word "${word}" plays a key role in the sentence: "${sentence}". It contributes to the overall meaning by emphasizing its context.`
+    };
+  }
 };
 
 // For debugging tool calls
@@ -75,11 +103,8 @@ export async function callLLM(messages: OpenRouterMessage[], currentTools?: Tool
     tool_choice?: 'auto' | 'none' | { type: string; function: { name: string } };
     temperature?: number;
   } = {
-    model: 'google/gemini-flash-1.5:online', // Using a web-enabled Gemini model
-    messages,
-    // Web search is enabled by :online, specific plugin config might not be needed
-    // unless we want to customize search_prompt or max_results.
-    // For now, relying on default :online behavior.
+    model: 'google/gemini-2.0-flash-001', // Using the :online model suffix
+    messages: messages,
   };
 
   if (temperature !== undefined) {
@@ -93,16 +118,14 @@ export async function callLLM(messages: OpenRouterMessage[], currentTools?: Tool
     body.tool_choice = 'auto'; // Let the model decide when to use tools
     debugLog("LLM Service: Using tools", currentTools);
   } else {
-    // If no specific tools, ensure tool_choice is not set or is 'none' if we want to prevent any tool use.
-    // For web search, 'auto' or omitting tool_choice is fine.
-    // The :online suffix handles the web search plugin implicitly.
     debugLog("LLM Service: No specific tools provided, relying on web search via :online model suffix.");
   }
 
-  debugLog("LLM Service: OpenRouter API Request", body);
+  debugLog("LLM Service: OpenRouter API Request", JSON.stringify(body, null, 2));
 
   try {
     const apiKey = getEnvironmentConfig().OPENROUTER_API_KEY;
+    debugLog("Using API Key:", apiKey);
     
     const response = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',

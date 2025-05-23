@@ -45,43 +45,57 @@
       <img id="header-icon" src="icon.png" alt="Cloze Icon" class="mr-2 h-8 w-8">
       <h1 id="game-title" class="text-2xl font-bold tracking-wider text-shadow-typewriter">Cloze Reader</h1>
     </div>
-    <div class="flex flex-wrap justify-center items-center gap-3">
-      <button 
-        id="new-text-btn" 
+    <div class="flex flex-wrap justify-end items-center gap-3 ml-auto"> <!-- Changed justify-center to justify-end and added ml-auto -->
+      <button
+        id="settings-btn"
+        class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon transition-all min-w-[120px] min-h-[42px] flex items-center justify-center"
+        aria-label="Open settings"
+      >
+        Settings
+      </button>
+      <button
+        id="new-text-btn"
         class="px-4 py-2 bg-typewriter-ribbon text-aged-paper font-medium rounded shadow-typewriter hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-typewriter-ink focus:ring-offset-2 transition-all min-w-[120px] min-h-[42px] flex items-center justify-center"
         aria-label="Get new text passage"
       >
         New Text
       </button>
-      <span 
-        id="round-info" 
-        class="text-lg tracking-typewriter font-typewriter px-3"
+    </div>
+  </header>
+  <main id="app" class="flex-1 overflow-auto p-6 flex flex-col gap-4"> <!-- Changed from grid to flex column -->
+    <section id="bibliographic-area" class="p-4 rounded shadow bg-aged-paper ink-ribbon-effect"></section>
+    <section id="game-area" class="prose prose-lg p-4 rounded shadow break-words bg-aged-paper ink-ribbon-effect"></section>
+    <section id="analysis-area" class="prose prose-lg p-4 rounded shadow break-words bg-aged-paper ink-ribbon-effect hidden"></section>
+    
+    <!-- Game controls with the Hint | Submit buttons -->
+    <div class="flex flex-col gap-2">
+      <!-- Control buttons row -->
+      <div id="game-controls" class="flex justify-end items-center gap-2 mt-2 min-h-[45px]"> <!-- Added min-height -->
+        <button
+          id="hint-btn"
+          class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
+          aria-label="Get a hint for a blank"
+        >
+          Hint (3)
+        </button>
+        <button
+          id="submit-btn"
+          class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
+          aria-label="Submit your answers"
+        >
+          Submit
+        </button>
+      </div>
+      
+      <footer id="result" class="text-center text-lg font-medium text-shadow-typewriter"></footer>
+      <span
+        id="round-info"
+        class="text-center text-lg tracking-typewriter font-typewriter px-3"
         aria-live="polite"
       >
         Round 1 — 5 blanks
       </span>
-      <button 
-        id="hint-btn" 
-        class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] min-h-[42px] flex items-center justify-center transition-all" 
-        disabled
-        aria-label="Get a hint for a blank"
-      >
-        Hint (3)
-      </button>
-      <button 
-        id="submit-btn" 
-        class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] min-h-[42px] flex items-center justify-center transition-all" 
-        disabled
-        aria-label="Submit your answers"
-      >
-        Submit
-      </button>
     </div>
-  </header>
-  <main id="app" class="flex-1 overflow-auto p-6 grid grid-rows-[auto_auto_1fr_auto] gap-4">
-    <section id="bibliographic-area" class="p-4 rounded shadow bg-aged-paper ink-ribbon-effect"></section>
-    <section id="game-area" class="prose prose-lg p-4 rounded shadow break-words bg-aged-paper ink-ribbon-effect"></section>
-    <footer id="result" class="text-center text-lg font-medium text-shadow-typewriter"></footer>
   </main>
 
   <!-- Settings Footer (Preact Component Mount Point) -->

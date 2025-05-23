@@ -39,7 +39,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   const remote = isRemoteInterface();
   
   // Try to get user-set API key from localStorage
-  const userProvidedKey = localStorage.getItem('openrouter_api_key');
+  const userProvidedKey = localStorage.getItem('openrouter_api_key') || '';
   const isUserKeyValid = Boolean(userProvidedKey) && 
                           userProvidedKey!.startsWith('sk-or-') && 
                           userProvidedKey!.length > 20;
@@ -95,6 +95,7 @@ export function setUserApiKey(key: string): boolean {
   
   const trimmedKey = key.trim();
   if (trimmedKey && trimmedKey.startsWith('sk-or-') && trimmedKey.length > 20) {
+    debugLog("Valid API key provided:", trimmedKey);
     localStorage.setItem('openrouter_api_key', trimmedKey);
     return true;
   }

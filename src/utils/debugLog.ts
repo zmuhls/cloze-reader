@@ -13,7 +13,8 @@ export function debugLog(message: string, data?: any): void {
     try {
       // Attempt to stringify, handling potential circular references or large objects
       const jsonData = JSON.stringify(data, (key, value) => {
-        if (value instanceof HTMLElement) {
+        // Check if HTMLElement is defined (browser environment) before using instanceof
+        if (typeof HTMLElement !== 'undefined' && value instanceof HTMLElement) {
           return `HTMLElement (${value.tagName}${value.id ? '#' + value.id : ''})`;
         }
         // Add more complex object handling here if needed

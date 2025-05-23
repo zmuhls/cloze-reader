@@ -62,17 +62,6 @@ span.typewriter-text, p.typewriter-text {
 }
 
 /* Make instructions stand out */
-/* Removed overstyling */
-/* #welcome-overlay ol li, #welcome-overlay ul li {
-  background-color: #f0e6d2;
-  border-left: 3px solid #8b5cf6;
-  padding: 6px 10px;
-  margin: 8px 0;
-  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
-  color: #4b0082;
-  font-weight: 500;
-} */
-
 #welcome-overlay ol, #welcome-overlay ul {
   margin: 15px 0;
 }
@@ -252,6 +241,27 @@ select, button, input[type="text"] {
   color: theme('colors.aged-paper') !important; /* Change text color to aged paper */
 }
 
+/* Left-aligned typewriter text for analysis */
+.typewriter-text.text-left {
+  text-align: left;
+  word-spacing: 0.2em;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  line-height: 1.8;
+  margin-bottom: 0.5rem;
+}
+
+/* Analysis area styling */
+#analysis-area {
+  margin-top: 1rem;
+  display: none;
+}
+
+#analysis-area.visible {
+  display: block;
+}
+
 
 /* Responsive header adjustments */
 @media (max-width: 768px) {
@@ -418,36 +428,61 @@ button {
 }
 
 /* Normalize header controls */
-header .flex.space-x-4 {
-  gap: 10px;
+header {
+  display: flex !important;
+  flex-direction: row !important;
   flex-wrap: wrap;
-  justify-content: center;
-  align-items: center; /* Vertically align items */
+  justify-content: space-between;
+  align-items: center;
 }
 
+/* Styling for the right-aligned button group in the header */
+header .flex.flex-wrap.justify-end.items-center {
+  display: flex !important;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+
 @media (max-width: 768px) {
-  header .flex.space-x-4 {
-    gap: 0.5rem; /* Reduce gap on smaller screens */
-    flex-direction: column; /* Stack header controls vertically */
-    align-items: stretch; /* Stretch items to fill container width */
+  header {
+    flex-direction: column; /* Stack title and buttons vertically */
+  }
+  header .flex.items-center.mb-4 { /* Title group */
+    margin-bottom: 0.5rem; /* Reduce margin if stacking */
+  }
+  header .flex.justify-end.items-center { /* Button group */
+    width: 100%;
+    justify-content: space-around; /* Space out buttons if they wrap */
+    gap: 0.5rem;
   }
 
-  header .flex.space-x-4 > * {
-    width: 100%; /* Make header controls take full width */
-    margin-bottom: 0.5rem; /* Add spacing between stacked elements */
+  header .flex.justify-end.items-center button {
+    flex-grow: 1; /* Allow buttons to grow and fill space */
+    min-width: 100px; /* Ensure buttons are not too small */
   }
 
+  /* Ensure buttons in the header and game controls are responsive */
   button, select, input[type="text"] {
-    min-width: unset; /* Remove min-width constraint */
-    width: 100%; /* Make buttons and inputs take full width */
     font-size: 0.9rem;
-    padding: 8px 12px !important;
-    box-sizing: border-box; /* Include padding and border in element's total width */
+    padding: 8px 12px !important; /* Maintain consistent padding */
+    box-sizing: border-box;
+  }
+  
+  #game-controls button {
+    padding: 6px 10px !important; /* Smaller padding for game controls */
+    font-size: 0.85rem;
+    min-width: 80px; /* Smaller min-width for game controls */
+    min-height: 32px;
   }
 
   #round-info {
     text-align: center; /* Center round info */
     width: 100%;
+    margin-top: 0.5rem; /* Add some space above round info */
+    font-size: 1rem; /* Ensure round info is readable */
   }
 
   #category-select {
@@ -455,12 +490,50 @@ header .flex.space-x-4 {
   }
 }
 
+/* Styles for the new game controls area */
+#game-controls {
+  display: flex;
+  justify-content: flex-end; /* Align buttons to the right */
+  align-items: center;
+  gap: 0.5rem; /* Space between hint and submit buttons */
+  margin-top: 0.5rem; /* Space above the controls */
+  min-height: 45px; /* Ensure the container has a minimum height */
+  flex-shrink: 0; /* Prevent shrinking */
+  position: relative; /* Ensure proper stacking context */
+  z-index: 5; /* Ensure buttons appear above other content */
+}
+
+#game-controls button {
+  font-size: 0.9em; /* Slightly smaller font for these buttons */
+  padding: 0.35rem 0.75rem; /* Smaller padding */
+  min-width: 90px; /* Adjust min-width as needed */
+  min-height: 36px; /* Adjust min-height */
+  opacity: 1; /* Ensure buttons are visible even when disabled */
+  pointer-events: auto; /* Ensure buttons receive click events */
+}
+
+/* Ensure proper styling when disabled */
+#game-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
 /* Ensure game area handles overflow and responsiveness */
 #game-area {
   overflow-x: hidden; /* Prevent horizontal scroll */
   overflow-wrap: break-word; /* Standardize word wrapping */
   word-break: break-word; /* Ensure long words break */
 }
+
+/* Center round-info text */
+#round-info {
+  text-align: center;
+  display: block; /* Make it a block to allow text-align to work */
+  width: 100%;
+  margin-top: 0.5rem; /* Add some space if needed */
+}
+
 
 /* Add responsive base layout */
 @media screen and (max-width: 480px) {
@@ -582,5 +655,6 @@ header .flex.space-x-4 {
   
   .typewriter-text {
     font-family: 'Times New Roman', Times, serif !important; /* Better print font */
+    color: theme('colors.typewriter-ink');
   }
 }

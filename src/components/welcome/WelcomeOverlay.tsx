@@ -23,7 +23,7 @@ export const WelcomeOverlay: FunctionComponent<WelcomeOverlayProps> = ({ onStart
       const modal = document.querySelector('#welcome-modal');
       if (!modal) return;
       
-      const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      const focusableElements = modal.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
       const firstElement = focusableElements[0] as HTMLElement;
       const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
       

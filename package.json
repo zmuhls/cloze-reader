@@ -11,7 +11,8 @@
     "dev": "parcel inference.html index.html",
     "build": "parcel build inference.html index.html --public-url ./",
     "predeploy": "rm -rf dist && npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "test": "jest"
   },
   "keywords": [
     "typescript",
@@ -26,12 +27,17 @@
     "@preact/compat": "^18.3.1",
     "@preact/signals": "^2.0.4",
     "@tailwindcss/typography": "^0.5.13",
+    "@types/jest": "^29.5.14",
     "autoprefixer": "^10.4.19",
     "gh-pages": "^6.3.0",
+    "jest": "^29.7.0",
     "parcel": "^2.12.0",
     "postcss": "^8.4.38",
     "preact": "^10.26.6",
     "tailwindcss": "^3.4.3",
+    "ts-jest": "^29.3.4",
     "typescript": "^5.4.5"
+  },
+  "dependencies": {
   }
 }
