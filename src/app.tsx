@@ -188,7 +188,9 @@ const App = () => {
       {!showWelcome && (
         <div className="flex flex-col gap-2">
           {console.log("Rendering game controls and results")} {/* Log rendering */}
-          <div id="game-controls" className="flex justify-end items-center gap-2 mt-2 min-h-[45px]">
+          {/* game-controls uses flexbox to align items to the right (flush right) and center them vertically. */}
+        {/* The 'Continue' and 'Submit' buttons are siblings and will appear next to each other on the right when visible. */}
+        <div id="game-controls" className="flex justify-end items-center gap-2 mt-2 min-h-[45px]">
             <button
               id="hint-btn"
               className="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
@@ -204,21 +206,24 @@ const App = () => {
             >
               Analysis
             </button>
-            <button
-              id="submit-btn"
-              className="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
-              aria-label="Submit your answers"
-            >
-              Submit
-            </button>
-            <button
-              id="continue-btn"
-              className="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
-              aria-label="Continue to the next round"
-              style={{display: 'none'}}
-            >
-              Continue
-            </button>
+            {/* Container for Submit and Continue buttons to align them vertically and flush right */}
+            <div className="flex flex-col items-end gap-2">
+              <button
+                id="submit-btn"
+                className="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
+                aria-label="Submit your answers"
+              >
+                Submit
+              </button>
+              <button
+                id="continue-btn"
+                className="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
+                aria-label="Continue to the next round"
+                style={{display: 'none'}}
+              >
+                Continue
+              </button>
+            </div>
           </div>
           <footer id="result" className="text-center text-lg font-medium text-shadow-typewriter"></footer>
           <span

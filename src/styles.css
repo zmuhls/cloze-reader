@@ -53,12 +53,25 @@ body {
   background-color: theme('colors.aged-paper');
   max-width: 100%;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Fix word display */
-span.typewriter-text, p.typewriter-text {
+span.typewriter-text {
   display: inline;
   margin-right: 0;
+}
+
+/* Ensure paragraphs are properly separated */
+p.typewriter-text {
+  display: block;
+  margin-bottom: 1.5rem;
+}
+
+/* Dialogue formatting with tighter spacing */
+p.typewriter-text[data-dialogue="true"] {
+  margin-bottom: 0.5rem;
 }
 
 /* Make instructions stand out */

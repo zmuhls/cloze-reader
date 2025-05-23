@@ -143,10 +143,11 @@ export function extractKeyTerms(words: string[], count = 3): string[] {
 
 // --- Game State Variables ---
 // These will be managed within this module.
-export let paragraphsWords: string[][] = [[]];
-export let redactedIndices: number[][] = [[]];
+export let paragraphsWords: string[][] = []; // Array of paragraphs, each containing an array of words
+export let redactedIndices: number[][] = []; // Corresponding indices for redactions in each paragraph
 export let round = 1;
 export let blanksCount = 1; // Start with 1 blank for round 1
+export let passageDifficulty = 1; // Difficulty level of passages (1-5), increases with rounds
 export let hintsRemaining = parseInt(localStorage.getItem('hintsRemaining') || '5', 10);
 export let hintedBlanks: Set<string> = new Set(JSON.parse(localStorage.getItem('hintedBlanks') || '[]'));
 export let hintContents: Record<string, string> = {}; // Stores hint text for each blank
@@ -243,7 +244,8 @@ export function renderRound() {
   roundInfo.textContent = `Round ${round} — ${totalBlanks} blanks`;
   gameArea.innerHTML = '';
 
-  if (paragraphsWords[0].length === 0 && paragraphsWords[1].length === 0) {
+  // Check if we have any paragraphs
+  if (paragraphsWords.length === 0 || paragraphsWords.every(p => p.length === 0)) {
     gameArea.innerHTML = '<p class="text-red-500">Error: No paragraphs loaded.</p>';
     submitBtn.disabled = true;
     hintBtn.disabled = true;
@@ -251,11 +253,24 @@ export function renderRound() {
     return;
   }
 
-  for (let pIdx = 0; pIdx < 2; pIdx++) {
-    if (paragraphsWords[pIdx].length === 0) continue;
+  // Iterate through all paragraphs instead of just the first two
+  for (let pIdx = 0; pIdx < paragraphsWords.length; pIdx++) {
+    if (!paragraphsWords[pIdx] || paragraphsWords[pIdx].length === 0) continue;
 
     const paragraphElement = document.createElement('p');
-    paragraphElement.className = 'typewriter-text leading-relaxed break-words mb-6';
+    
+    // Determine if this is a dialogue paragraph (starts with a quote)
+    const paragraphText = paragraphsWords[pIdx].join(' ');
+    const isDialogue = paragraphText.trim().startsWith('"');
+    
+    // Apply appropriate styling based on paragraph type
+    paragraphElement.className = 'typewriter-text leading-relaxed break-words';
+    
+    // If this is dialogue, add data-dialogue attribute for CSS targeting
+    if (isDialogue) {
+      paragraphElement.setAttribute('data-dialogue', 'true');
+    }
+    
     paragraphElement.style.maxWidth = '100%';
     paragraphElement.style.overflowWrap = 'break-word';
     gameArea.appendChild(paragraphElement);
@@ -352,7 +367,8 @@ export function renderRound() {
     });
   }
 
-  const totalRedactedCount = redactedIndices[0].length + redactedIndices[1].length;
+  // Calculate total redactions across all paragraphs
+  const totalRedactedCount = redactedIndices.reduce((sum, indices) => sum + indices.length, 0);
   submitBtn.disabled = totalRedactedCount === 0;
   hintBtn.disabled = hintsRemaining <= 0 || totalRedactedCount === 0;
   resultArea.textContent = '';
@@ -382,12 +398,12 @@ export function resetGame() {
 
   round = 1;
   blanksCount = 1;
+  passageDifficulty = 1;
   hintsRemaining = 5;
   hintedBlanks.clear();
-  paragraphsWords[0] = [];
-  paragraphsWords[1] = [];
-  redactedIndices[0] = [];
-  redactedIndices[1] = [];
+  // Reset to empty arrays to properly support variable number of paragraphs
+  paragraphsWords = [];
+  redactedIndices = [];
   previousBooks = []; // Reset previous books on a full game reset
 
   localStorage.setItem('hintsRemaining', hintsRemaining.toString());
@@ -430,6 +446,27 @@ export function continueToNextRound(passed: boolean) {
   // Clear the result area or add a loading message
   if (resultArea) {
     resultArea.innerHTML = '<p class="typewriter-text">Loading next round...</p>';
+  }
+  
+  // Adjust difficulty based on round progression if user passed
+  if (passed) {
+    // Increment round number
+    round++;
+    
+    // Progressive difficulty adjustment
+    if (round <= 3) {
+      // Rounds 1-3: One blank per round (1, 2, 3)
+      blanksCount = round;
+    } else if (round <= 5) {
+      // Rounds 4-5: Add blanks more gradually
+      blanksCount = 3 + Math.floor((round - 3) * 0.5);
+    } else {
+      // Round 6+: Limit to 5 blanks max, but increase passage difficulty
+      blanksCount = 5;
+      passageDifficulty = Math.min(5, 1 + Math.floor((round - 5) * 0.5));
+    }
+    
+    debugLog(`Round ${round}: blanks=${blanksCount}, difficulty=${passageDifficulty}`);
   }
   
   // Start a new round with appropriate parameter
@@ -503,7 +540,7 @@ export async function startRound(forceNewPassage: boolean = false) {
     forceNewPassage,
     cacheExists: !!cachedPassage,
     cacheStale: isCacheStale,
-    endpoint: "https://gutendex.com/books" // Using direct Gutendex API
+    endpoint: "https://datasets-server.huggingface.co/rows?dataset=manu%2Fproject_gutenberg" // Using HuggingFace dataset API
   });
 
   if (!forceNewPassage && cachedPassage && !isCacheStale) {
@@ -515,8 +552,8 @@ export async function startRound(forceNewPassage: boolean = false) {
         metadata: parsedCache.metadata || null
       };
 
-      // --- INTEGRITY CHECK: Validate cached metadata and passage text against Gutendex ---
-      // If the metadata.id is present, fetch Gutendex metadata and compare title/author.
+      // --- INTEGRITY CHECK: Validate cached metadata and passage text against HuggingFace Project Gutenberg dataset ---
+      // If the metadata.id is present, fetch metadata and compare title/author.
       // Also, fetch the first 200 chars of the actual book and compare to the cached passage.
       let integrityCheckPassed = true;
       if (passageData.metadata && passageData.metadata.id && passageData.metadata.id > 0) {
@@ -634,11 +671,43 @@ export async function startRound(forceNewPassage: boolean = false) {
         localStorage.setItem('previousBooks', JSON.stringify(previousBooks));
       }
 
-      // Render the round with the fetched passage
-      paragraphsWords[0] = passageData.paragraphs[0]?.split(' ') || [];
-      paragraphsWords[1] = passageData.paragraphs[1]?.split(' ') || [];
-      redactedIndices[0] = chooseRedactions(paragraphsWords[0], blanksCount);
-      redactedIndices[1] = chooseRedactions(paragraphsWords[1], blanksCount);
+      // Process paragraphs - handle double newlines for intentional paragraph breaks
+      paragraphsWords = [];
+      redactedIndices = [];
+      
+      // Process the array of paragraphs from the passage
+      for (const paragraph of passageData.paragraphs) {
+        if (!paragraph || paragraph.trim() === '') continue;
+        
+        // Split by any sequence of newlines to handle intentional paragraph breaks
+        // This handles both \n\n and single \n that might be used for dialogue
+        const splitParagraphs = paragraph.split(/\n+/);
+        
+        for (const splitParagraph of splitParagraphs) {
+          if (splitParagraph.trim() === '') continue;
+          
+          // Check if this is a dialogue line (starts with quotes and is relatively short)
+          const isDialogue = splitParagraph.trim().startsWith('"') && 
+                            splitParagraph.length < 150; // Dialogue is typically short
+          
+          // Split into words and add to our array
+          const words = splitParagraph.split(' ');
+          if (words.length > 0) {
+            paragraphsWords.push(words);
+          }
+        }
+      }
+      
+      console.log(`Attempt ${round}: Successfully extracted ${paragraphsWords.length} paragraphs.`);
+      
+      // Distribute blanks among paragraphs
+      const blankDistribution = distributeRedactions(paragraphsWords, blanksCount);
+      
+      // Create redaction indices for each paragraph
+      for (let i = 0; i < paragraphsWords.length; i++) {
+        const blanksForThisParagraph = blankDistribution[i] || 0;
+        redactedIndices[i] = chooseRedactions(paragraphsWords[i], blanksForThisParagraph);
+      }
       renderRound();
       return passageData;
     }
@@ -689,10 +758,43 @@ export async function startRound(forceNewPassage: boolean = false) {
 
       // Set up the game state with the successfully fetched paragraphs
       if (passageData.paragraphs && passageData.paragraphs.length > 0) {
-        paragraphsWords[0] = passageData.paragraphs[0]?.split(' ') || [];
-        paragraphsWords[1] = passageData.paragraphs[1]?.split(' ') || [];
-        redactedIndices[0] = chooseRedactions(paragraphsWords[0], blanksCount);
-        redactedIndices[1] = chooseRedactions(paragraphsWords[1], blanksCount);
+        // Process paragraphs, splitting by double newlines to handle intentional paragraph breaks
+        paragraphsWords = [];
+        redactedIndices = [];
+        
+        // Process each passage paragraph
+        for (const paragraph of passageData.paragraphs) {
+          if (!paragraph || paragraph.trim() === '') continue;
+          
+          // Split by any sequence of newlines to handle intentional paragraph breaks
+          // This handles both \n\n and single \n that might be used for dialogue
+          const trueParagraphs = paragraph.split(/\n+/);
+          
+          for (const trueParagraph of trueParagraphs) {
+            if (trueParagraph.trim() === '') continue;
+            
+            // Check if this is a dialogue line (starts with quotes and is relatively short)
+            const isDialogue = trueParagraph.trim().startsWith('"') && 
+                              trueParagraph.length < 150; // Dialogue is typically short
+            
+            // Split into words and add to our array
+            const words = trueParagraph.split(' ');
+            if (words.length > 0) {
+              paragraphsWords.push(words);
+            }
+          }
+        }
+        
+        // Distribute blanks among paragraphs
+        let remainingBlanks = blanksCount;
+        const blankDistribution = distributeRedactions(paragraphsWords, remainingBlanks);
+        
+        // Create redaction indices for each paragraph
+        for (let i = 0; i < paragraphsWords.length; i++) {
+          const blanksForThisParagraph = blankDistribution[i] || 0;
+          redactedIndices[i] = chooseRedactions(paragraphsWords[i], blanksForThisParagraph);
+        }
+        
         renderRound();
         return passageData;
       } else {
@@ -830,6 +932,77 @@ export function handleSubmission() {
   // Disable hint and submit buttons
   submitBtn.disabled = true;
   hintBtn.disabled = true;
+}
+
+/**
+ * Distributes redactions (blanks) across paragraphs based on their length
+ * @param paragraphs Array of paragraphs, each containing an array of words
+ * @param totalBlanks Total number of blanks to distribute
+ * @returns Array of numbers indicating how many blanks each paragraph should have
+ */
+function distributeRedactions(paragraphs: string[][], totalBlanks: number): number[] {
+  if (paragraphs.length === 0 || totalBlanks === 0) return [];
+  
+  // For round 1, just put a single blank in the first paragraph
+  if (round === 1 && totalBlanks === 1) {
+    const result = Array(paragraphs.length).fill(0);
+    // Find the first non-empty paragraph
+    for (let i = 0; i < paragraphs.length; i++) {
+      if (paragraphs[i].length > 0) {
+        result[i] = 1;
+        return result;
+      }
+    }
+    return result;
+  }
+  
+  // For other rounds, distribute proportionally by paragraph length
+  const totalWords = paragraphs.reduce((sum, para) => sum + para.length, 0);
+  const distribution: number[] = [];
+  
+  // Initial distribution based on proportional length
+  let remainingBlanks = totalBlanks;
+  
+  // First pass - distribute based on word count proportion
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (paragraphs[i].length === 0) {
+      distribution[i] = 0;
+      continue;
+    }
+    
+    // Calculate proportion of words in this paragraph relative to total
+    const proportion = paragraphs[i].length / totalWords;
+    // Allocate blanks proportionally, with at least 1 blank per paragraph
+    // if there are enough blanks remaining
+    const blanksForParagraph = Math.max(
+      remainingBlanks > 0 ? 1 : 0,
+      Math.min(
+        Math.floor(proportion * totalBlanks),
+        paragraphs[i].length, // Never use more blanks than words in paragraph
+        remainingBlanks // Never allocate more than what's remaining
+      )
+    );
+    
+    distribution[i] = blanksForParagraph;
+    remainingBlanks -= blanksForParagraph;
+  }
+  
+  // Second pass - distribute any remaining blanks to paragraphs 
+  // that can accommodate more
+  let i = 0;
+  while (remainingBlanks > 0 && i < paragraphs.length) {
+    if (paragraphs[i].length > distribution[i]) {
+      distribution[i]++;
+      remainingBlanks--;
+    }
+    i = (i + 1) % paragraphs.length; // Cycle through paragraphs
+    
+    // Break if we've gone through all paragraphs and still have remaining blanks
+    // This prevents infinite loops if no paragraph can take more blanks
+    if (i === 0 && remainingBlanks === totalBlanks) break;
+  }
+  
+  return distribution;
 }
 
 // Add any additional functions or exports as needed

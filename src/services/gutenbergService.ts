@@ -2,23 +2,30 @@
 
 import { debugLog } from '@/utils/debugLog';
 
-export interface GutendexBook {
-  id: number;
-  title: string;
-  authors: { name: string }[];
-  subjects: string[];
-  bookshelves: string[];
-  languages: string[];
-  copyright: boolean;
-  formats: Record<string, string>;
-  download_count: number;
+// --- New HuggingFace Project Gutenberg Dataset Types ---
+export interface HuggingFaceBook {
+  id: number;          // Unique identifier
+  title: string;       // Book title
+  author: string;      // Book author
+  text: string;        // Book content
+  language: string;    // Language code
+  subjects?: string[]; // Optional subjects
+  bookshelves?: string[]; // Optional bookshelves
 }
 
-export interface GutendexResponse {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: GutendexBook[];
+export interface HuggingFaceDatasetResponse {
+  features: Record<string, { dtype: string; }>;
+  rows: HuggingFaceBook[];
+  num_rows: number;
+}
+
+export interface HuggingFaceSplitsResponse {
+  splits: string[];
+}
+
+export interface HuggingFaceParquetFilesResponse {
+  parquet_files: string[];
+  safe_name?: string;
 }
 
 export interface SearchGutenbergBooksArgs {
@@ -34,8 +41,8 @@ export interface SearchGutenbergBooksArgs {
 }
 
 /**
- * Maps bookshelf/category codes to Gutendex bookshelf names.
- * Maps UI bookshelf IDs to Gutendex bookshelf names.
+ * Maps bookshelf/category codes to bookshelf names.
+ * Maps UI bookshelf IDs to bookshelf names.
  */
 export const BOOKSHELF_ID_MAP: Record<string, string> = {
   // These match the values in QueryOptions.tsx
@@ -57,7 +64,7 @@ export const BOOKSHELF_ID_MAP: Record<string, string> = {
 };
 
 /**
- * Converts a bookshelf/category string (e.g. "bookshelf/480") to a Gutendex bookshelf name.
+ * Converts a bookshelf/category string (e.g. "bookshelf/480") to a bookshelf name.
  */
 export function parseBookshelf(category: string | null | undefined): string | undefined {
   if (!category) return undefined;
@@ -69,7 +76,7 @@ export function parseBookshelf(category: string | null | undefined): string | un
 }
 
 /**
- * Converts a century string (e.g. "15") to a Gutendex year range.
+ * Converts a century string (e.g. "15") to a year range.
  * Note: In the UI, "15" refers to the 16th century (1500-1599).
  * This means we use the century number directly as the first two digits of the year.
  */
@@ -84,186 +91,164 @@ export function centuryToYearRange(century: string | null | undefined): { start:
 }
 
 /**
- * Searches Gutendex for books matching the given criteria.
- * This function connects directly to the official Gutendex API endpoint.
+ * Fetches the list of split names for the Project Gutenberg dataset.
  */
-export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Promise<GutendexBook[]> {
-  const params: Record<string, string> = {};
-  if (args.bookshelf) params.bookshelves = args.bookshelf;
-  if (args.subject) params.subject = args.subject;
-  if (args.author) params.author = args.author;
-  if (args.language) params.languages = args.language;
-  if (args.copyright !== undefined) params.copyright = args.copyright ? "true" : "false";
-  if (args.limit) params.page_size = String(args.limit);
-  if (args.offset) params.offset = String(args.offset);
+export async function fetchDatasetSplits(): Promise<string[]> {
+  try {
+    const url = "https://datasets-server.huggingface.co/splits?dataset=manu%2Fproject_gutenberg";
+    debugLog("Fetching dataset splits from HuggingFace", { url });
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch dataset splits: ${response.status}`);
+    }
+    
+    const data: HuggingFaceSplitsResponse = await response.json();
+    return data.splits;
+  } catch (error) {
+    console.error("Error fetching dataset splits:", error);
+    return [];
+  }
+}
 
-  // Gutendex does not support direct year filtering, but we can filter results after fetching
-  const url = `https://gutendex.com/books?${Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&")}`;
-  debugLog("Gutendex API search URL", url);
+/**
+ * Fetches the list of Parquet files for a specific split of the dataset.
+ */
+export async function fetchParquetFiles(split: string = "de"): Promise<string[]> {
+  try {
+    const url = `https://huggingface.co/api/datasets/manu/project_gutenberg/parquet/default/${split}`;
+    debugLog("Fetching Parquet files from HuggingFace", { url, split });
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Parquet files: ${response.status}`);
+    }
+    
+    const data: HuggingFaceParquetFilesResponse = await response.json();
+    return data.parquet_files;
+  } catch (error) {
+    console.error("Error fetching Parquet files:", error);
+    return [];
+  }
+}
 
-  // Log API connection information
-  debugLog("Direct Gutendex API connection:", { 
-    endpoint: "https://gutendex.com/books",
-    params: params,
-  });
-  
-  debugLog("Fetching from URL:", url); // Add logging for the URL being fetched
-  const resp = await fetch(url);
-  debugLog("Response status:", resp.status); // Log the response status
-  if (!resp.ok) throw new Error(`Gutendex API error: ${resp.status}`);
-  const data: GutendexResponse = await resp.json();
-
-  let books = data.results;
-
-  // Filter by century if needed
-  if (args.century) {
-    const range = centuryToYearRange(args.century);
-    if (range) {
-      // With our updated centuryToYearRange function, "15" maps to 1500s (16th century)
-      // So we need to adjust the century number for textual patterns
-      const centuryNum = Math.floor(range.start / 100) + 1; // Convert year to century number (e.g., 1500 -> 16th)
-      const yearPrefix = Math.floor(range.start / 100); // Just the first 2 digits (e.g., 1500 -> 15)
-      
+/**
+ * Searches for books in the Project Gutenberg dataset matching the given criteria.
+ */
+export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Promise<HuggingFaceBook[]> {
+  try {
+    // Default to "de" split (German) as per example URL, but we should change this based on needs
+    const split = args.language === "de" ? "de" : "default";
+    const offset = args.offset || 0;
+    const length = args.limit || 100;
+    
+    const url = `https://datasets-server.huggingface.co/rows?dataset=manu%2Fproject_gutenberg&config=default&split=${split}&offset=${offset}&length=${length}`;
+    debugLog("Searching Project Gutenberg dataset from HuggingFace", { 
+      url, 
+      split, 
+      offset, 
+      length,
+      searchCriteria: args 
+    });
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch books: ${response.status}`);
+    }
+    
+    const data: HuggingFaceDatasetResponse = await response.json();
+    let books = data.rows;
+    
+    // Apply filters based on search criteria
+    if (args.author) {
+      const authorLower = args.author.toLowerCase();
+      books = books.filter(book => book.author && book.author.toLowerCase().includes(authorLower));
+    }
+    
+    if (args.bookshelf) {
       books = books.filter(book => {
-        // Look for multiple patterns in subjects and bookshelves
-        const centuryPatterns = [
-          `${centuryNum}th century`, // e.g., "16th century" for 1500s
-          `${yearPrefix}00s`,        // e.g., "1500s" 
-          `${range.start}s`,         // e.g., "1500s"
-          `${yearPrefix}00's`,       // e.g., "1500's"
-          `${yearPrefix}00-`,        // e.g., "1500-" (for date ranges)
-          `${range.start}-`          // e.g., "1500-" (for date ranges)
-        ];
-        
-        // Check subjects array
-        const inSubjects = book.subjects.some(subj => {
-          const lowerSubj = subj.toLowerCase();
-          return centuryPatterns.some(pattern => lowerSubj.includes(pattern.toLowerCase()));
-        });
-        
-        // Check bookshelves array
-        const inBookshelves = book.bookshelves.some(shelf => {
-          const lowerShelf = shelf.toLowerCase();
-          return centuryPatterns.some(pattern => lowerShelf.includes(pattern.toLowerCase()));
-        });
-        
-        return inSubjects || inBookshelves;
+        if (!book.bookshelves) return false;
+        return book.bookshelves.some(shelf => 
+          shelf.toLowerCase().includes(args.bookshelf!.toLowerCase())
+        );
       });
     }
-  }
-
-  // Exclude IDs if provided
-  if (args.excludeIds && args.excludeIds.length > 0) {
-    books = books.filter(book => !args.excludeIds!.includes(book.id));
-  }
-
-  return books;
-}
-
-/**
- * Gets the best available text URL for a Gutendex book.
- */
-export function getBookTextUrl(book: GutendexBook): string | null {
-  // Prefer HTML, then plain text
-  const formats = book.formats;
-  if (formats["text/html; charset=utf-8"]) return formats["text/html; charset=utf-8"];
-  if (formats["text/html"]) return formats["text/html"];
-  if (formats["text/plain; charset=utf-8"]) return formats["text/plain; charset=utf-8"];
-  if (formats["text/plain"]) return formats["text/plain"];
-  // Fallback: try any HTML or plain text
-  for (const [key, url] of Object.entries(formats)) {
-    if (key.startsWith("text/html")) return url;
-    if (key.startsWith("text/plain")) return url;
-  }
-  return null;
-}
-
-/**
- * Extracts the canonical Gutenberg ebook URL from Gutendex format URLs.
- * This is more reliable than constructing URLs based on Gutendex's ID field.
- * 
- * @param book The Gutendex book object
- * @returns The canonical Gutenberg URL or null if it cannot be determined
- */
-export function getCanonicalGutenbergUrl(book: GutendexBook): string | null {
-  try {
-    // Try to extract the canonical URL from any format URL
-    const formats = book.formats || {};
-    const formatKeys = Object.keys(formats);
     
-    if (formatKeys.length === 0) return null;
+    if (args.subject) {
+      books = books.filter(book => {
+        if (!book.subjects) return false;
+        return book.subjects.some(subj => 
+          subj.toLowerCase().includes(args.subject!.toLowerCase())
+        );
+      });
+    }
     
-    // Try formats in preferred order
-    const formatPreference = [
-      "text/html; charset=utf-8", 
-      "text/html",
-      "text/plain; charset=utf-8",
-      "text/plain",
-      "application/epub+zip"
-    ];
-    
-    // First try preferred formats
-    for (const format of formatPreference) {
-      if (formats[format]) {
-        const ebookId = extractEbookIdFromFormatUrl(formats[format]);
-        if (ebookId) return `https://www.gutenberg.org/ebooks/${ebookId}`;
+    // Filter by century if needed
+    if (args.century) {
+      const range = centuryToYearRange(args.century);
+      if (range) {
+        const centuryNum = Math.floor(range.start / 100) + 1; // Convert year to century number (e.g., 1500 -> 16th)
+        const yearPrefix = Math.floor(range.start / 100); // Just the first 2 digits (e.g., 1500 -> 15)
+        
+        books = books.filter(book => {
+          // Look for multiple patterns in subjects and bookshelves
+          const centuryPatterns = [
+            `${centuryNum}th century`, // e.g., "16th century" for 1500s
+            `${yearPrefix}00s`,        // e.g., "1500s" 
+            `${range.start}s`,         // e.g., "1500s"
+            `${yearPrefix}00's`,       // e.g., "1500's"
+            `${yearPrefix}00-`,        // e.g., "1500-" (for date ranges)
+            `${range.start}-`          // e.g., "1500-" (for date ranges)
+          ];
+          
+          // Check subjects array
+          const inSubjects = book.subjects ? book.subjects.some(subj => {
+            const lowerSubj = subj.toLowerCase();
+            return centuryPatterns.some(pattern => lowerSubj.includes(pattern.toLowerCase()));
+          }) : false;
+          
+          // Check bookshelves array
+          const inBookshelves = book.bookshelves ? book.bookshelves.some(shelf => {
+            const lowerShelf = shelf.toLowerCase();
+            return centuryPatterns.some(pattern => lowerShelf.includes(pattern.toLowerCase()));
+          }) : false;
+          
+          return inSubjects || inBookshelves;
+        });
       }
     }
     
-    // If preferred formats aren't available, try any format URL
-    for (const key of formatKeys) {
-      const ebookId = extractEbookIdFromFormatUrl(formats[key]);
-      if (ebookId) return `https://www.gutenberg.org/ebooks/${ebookId}`;
+    // Exclude IDs if provided
+    if (args.excludeIds && args.excludeIds.length > 0) {
+      books = books.filter(book => !args.excludeIds!.includes(book.id));
     }
     
-    return null;
+    return books;
   } catch (error) {
-    console.error("Error extracting canonical URL:", error);
-    return null;
+    console.error("Error searching Gutenberg books:", error);
+    return [];
   }
 }
 
 /**
- * Extracts the real ebook ID from a Gutendex format URL.
- * Examples:
- * - https://www.gutenberg.org/files/33848/33848-h/33848-h.htm → 33848
- * - https://www.gutenberg.org/ebooks/33848.html.images → 33848
- * - https://www.gutenberg.org/cache/epub/33848/pg33848.html → 33848
+ * Gets the best available text content from a HuggingFace book.
  */
-function extractEbookIdFromFormatUrl(url: string): string | null {
-  try {
-    const urlObj = new URL(url);
-    
-    // Match patterns in pathnames 
-    
-    // Pattern 1: /files/33848/...
-    const filesMatch = urlObj.pathname.match(/\/files\/(\d+)\//);
-    if (filesMatch && filesMatch[1]) return filesMatch[1];
-    
-    // Pattern 2: /ebooks/33848...
-    const ebooksMatch = urlObj.pathname.match(/\/ebooks\/(\d+)(?:\.|\/)/);
-    if (ebooksMatch && ebooksMatch[1]) return ebooksMatch[1];
-    
-    // Pattern 3: /cache/epub/33848/...
-    const cacheMatch = urlObj.pathname.match(/\/cache\/epub\/(\d+)\//);
-    if (cacheMatch && cacheMatch[1]) return cacheMatch[1];
-    
-    // Pattern 4: ...pg33848.html
-    const pgMatch = urlObj.pathname.match(/pg(\d+)\./);
-    if (pgMatch && pgMatch[1]) return pgMatch[1];
-    
-    return null;
-  } catch (error) {
-    console.error("Error parsing format URL:", error);
-    return null;
-  }
+export function getBookText(book: HuggingFaceBook): string | null {
+  return book.text || null;
 }
 
 /**
- * Fetches the text content of a Gutendex book.
+ * Gets the canonical URL for a Project Gutenberg book.
  */
-export async function fetchBookText(url: string): Promise<string> {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to fetch book text: ${resp.status}`);
-  return await resp.text();
+export function getCanonicalGutenbergUrl(book: HuggingFaceBook): string | null {
+  if (!book.id) return null;
+  return `https://www.gutenberg.org/ebooks/${book.id}`;
+}
+
+/**
+ * Fetches the text content of a book.
+ */
+export async function fetchBookText(book: HuggingFaceBook): Promise<string> {
+  // The HuggingFace dataset already includes the text content
+  return book.text || "";
 }

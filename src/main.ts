@@ -5,13 +5,13 @@ const FORCE_FALLBACK = false; // Using the provided API key
 import { debugLog } from '@/utils/debugLog';
 // Import the environment configuration utilities
 import { getEnvironmentConfig, isUsingUserProvidedApiKey } from '@/utils/environmentConfig';
-// Import Gutendex API functions
+// Import HuggingFace Project Gutenberg API functions
 import { 
   searchGutenbergBooks, 
   parseBookshelf, 
-  getBookTextUrl, 
+  getBookText, 
   fetchBookText, 
-  GutendexBook 
+  HuggingFaceBook 
 } from '@/services/gutenbergService';
 import { runAgenticLoop, OpenRouterMessage } from '@/services/llmService';
 // Import game logic functions and state, including startRound and handleSubmission
@@ -106,7 +106,7 @@ async function fetchPassageWithGutendex(
     }
     
     // Select a book from the results that hasn't been excluded
-    let selectedBook: GutendexBook | null = null;
+    let selectedBook: HuggingFaceBook | null = null;
     for (const book of books) {
       if (!excludeIds.includes(book.id)) {
         selectedBook = book;
@@ -122,19 +122,19 @@ async function fetchPassageWithGutendex(
     debugLog("Selected book from Gutendex", { 
       id: selectedBook.id, 
       title: selectedBook.title, 
-      author: selectedBook.authors.map(a => a.name).join(', ') 
+      author: selectedBook.author 
     });
     
-    // Get text URL from the book's formats
-    const textUrl = getBookTextUrl(selectedBook);
-    if (!textUrl) {
-      debugLog("No suitable text URL found for book", { id: selectedBook.id });
+    // Get text content from the book
+    const bookText = getBookText(selectedBook);
+    if (!bookText) {
+      debugLog("No suitable text content found for book", { id: selectedBook.id });
       return null;
     }
     
     try {
-      // Attempt to fetch the book's text content - this may encounter CORS issues
-      const fullText = await fetchBookText(textUrl);
+      // Get the book's text content
+      const fullText = await fetchBookText(selectedBook);
       if (!fullText || fullText.length < 1000) {
         debugLog("Book text too short or empty", { id: selectedBook.id, textLength: fullText?.length });
         return null;
@@ -157,7 +157,7 @@ async function fetchPassageWithGutendex(
         paragraphs,
         metadata: {
           title: selectedBook.title,
-          author: selectedBook.authors.map(a => a.name).join(', '),
+          author: selectedBook.author,
           id: selectedBook.id,
         }
       };
