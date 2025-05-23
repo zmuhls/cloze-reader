@@ -37,6 +37,7 @@ interface PassageData {
     id: number;
     century?: string;
     canonicalUrl?: string;
+    factoid?: string; // Add optional factoid
   } | null;
 }
 

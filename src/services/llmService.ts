@@ -66,6 +66,31 @@ export const tools: ToolDefinition[] = [
         required: ['sentence', 'word']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getBookAuthorInfo',
+      description: 'Fetches a concise, interesting factoid about the author or book, and a validated Project Gutenberg URL for the book title.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'The title of the book.'
+          },
+          author: {
+            type: 'string',
+            description: 'The author of the book.'
+          },
+          gutenbergId: {
+            type: 'string',
+            description: 'The Project Gutenberg ID of the book (optional, if known).'
+          }
+        },
+        required: ['title', 'author']
+      }
+    }
   }
 ];
 
@@ -78,6 +103,141 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
     // Here, we simulate a call to OpenRouter with function calling.
     return {
       analysis: `The word "${word}" plays a key role in the sentence: "${sentence}". It contributes to the overall meaning by emphasizing its context.`
+    };
+  },
+  async getBookAuthorInfo(args: { title: string; author: string; gutenbergId?: string }): Promise<object> {
+    const { title, author } = args;
+    let factoid = `Interesting information about "${title}" by ${author}.`;
+    let validatedUrl = '';
+
+    try {
+      // STEP 1: First try to find the book in the HuggingFace dataset (more reliable source)
+      const { searchGutenbergBooks } = await import('@/services/gutenbergService');
+      const searchResults = await searchGutenbergBooks({
+        author,
+        limit: 5
+      });
+      
+      // Look for an exact or close match by title
+      const exactMatches = searchResults.filter(book => 
+        book.title.toLowerCase() === title.toLowerCase());
+      const closeMatches = searchResults.filter(book => 
+        book.title.toLowerCase().includes(title.toLowerCase()) ||
+        title.toLowerCase().includes(book.title.toLowerCase()));
+      
+      // Get the best match (exact match first, then close match)
+      const bestMatch = exactMatches[0] || closeMatches[0];
+      
+      if (bestMatch && bestMatch.id) {
+        // We found a reliable ID from the dataset
+        validatedUrl = `https://www.gutenberg.org/ebooks/${bestMatch.id}`;
+        
+        // Validate URL with a HEAD request
+        try {
+          const response = await fetch(validatedUrl, { method: 'HEAD' });
+          if (!response.ok) {
+            validatedUrl = ''; // URL is not valid, clear it
+            debugLog("HuggingFace dataset book URL validation failed:", response.status);
+          } else {
+            debugLog("HuggingFace dataset book URL validated successfully:", validatedUrl);
+          }
+        } catch (error) {
+          validatedUrl = ''; // Error with validation, clear URL
+          debugLog("Error validating HuggingFace dataset book URL:", error);
+        }
+      } else {
+        debugLog("No match found in HuggingFace dataset for:", { title, author });
+      }
+      
+      // STEP 2: Always use LLM for the factoid, regardless of URL success
+      const messages: OpenRouterMessage[] = [
+        {
+          role: 'system',
+          content: `You are a literary expert. Provide a concise, interesting factoid about "${title}" by ${author}. The factoid should be 1-2 sentences, engaging, and relevant to the book or author. DO NOT provide a URL or Gutenberg ID.`
+        },
+        {
+          role: 'user',
+          content: `Please provide a brief, interesting factoid about "${title}" by ${author}.`
+        }
+      ];
+
+      const llmResponse = await callLLM(messages, [], 0.7);
+      
+      if (llmResponse && llmResponse.content) {
+        factoid = llmResponse.content.trim();
+        debugLog("Generated factoid:", factoid);
+      }
+      
+      // STEP 3: If we still don't have a validated URL, try getting one from the LLM
+      if (!validatedUrl) {
+        const urlMessages: OpenRouterMessage[] = [
+          {
+            role: 'system',
+            content: `You are an expert at finding validated Project Gutenberg URLs. Find a direct, working URL to "${title}" by ${author} on Project Gutenberg. Respond ONLY with the full, directly accessible URL. If you cannot find an exact and validated URL, respond with "No validated URL found".`
+          },
+          {
+            role: 'user',
+            content: `Find the exact Project Gutenberg URL for "${title}" by ${author}. Provide only the full URL.`
+          }
+        ];
+
+        const urlResponse = await callLLM(urlMessages, [], 0.3);
+        
+        if (urlResponse && urlResponse.content) {
+          const content = urlResponse.content.trim();
+          // Extract URL with regex
+          const urlMatch = content.match(/(https?:\/\/www\.gutenberg\.org\/ebooks\/[0-9]+)/);
+          if (urlMatch && urlMatch[1]) {
+            const candidateUrl = urlMatch[1];
+            
+            // Validate URL with a HEAD request
+            try {
+              const response = await fetch(candidateUrl, { method: 'HEAD' });
+              if (response.ok) {
+                validatedUrl = candidateUrl;
+                debugLog("LLM-provided URL validated successfully:", validatedUrl);
+              } else {
+                debugLog("LLM-provided URL validation failed:", response.status);
+              }
+            } catch (error) {
+              debugLog("Error validating LLM-provided URL:", error);
+            }
+          }
+        }
+      }
+      
+      // STEP 4: If still no URL, try a fallback to Wikipedia
+      if (!validatedUrl) {
+        const wikiMessages: OpenRouterMessage[] = [
+          {
+            role: 'system',
+            content: `You are a search expert. Find the Wikipedia page URL for the book "${title}" by ${author}. If a book-specific page doesn't exist, find the Wikipedia page for the author. Respond ONLY with the full, directly accessible Wikipedia URL. If you cannot find any Wikipedia page, respond with "No Wikipedia URL found".`
+          },
+          {
+            role: 'user',
+            content: `Find the Wikipedia URL for "${title}" by ${author}. Provide only the full URL.`
+          }
+        ];
+
+        const wikiResponse = await callLLM(wikiMessages, [], 0.3);
+        
+        if (wikiResponse && wikiResponse.content) {
+          const content = wikiResponse.content.trim();
+          // Extract URL with regex
+          const urlMatch = content.match(/(https?:\/\/en\.wikipedia\.org\/wiki\/[^"\s]+)/);
+          if (urlMatch && urlMatch[1]) {
+            validatedUrl = urlMatch[1];
+            debugLog("Using Wikipedia URL as fallback:", validatedUrl);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error in getBookAuthorInfo:", error);
+    }
+
+    return {
+      factoid,
+      validatedUrl
     };
   }
 };

@@ -86,9 +86,28 @@ export function chooseRedactions(words: string[], count: number): number[] {
     if (functionWords.has(cleanWord)) {
       score -= 10;
     }
-    if (index > 0 && word[0] === word[0].toUpperCase() && word[0].match(/[A-Z]/)) {
-      score += 5;
+    
+    // NEW: Detect and deprioritize proper nouns
+    // Check if word is capitalized (but not at sentence start)
+    const isCapitalized = word[0] === word[0].toUpperCase() && word[0].match(/[A-Z]/);
+    const isProbablySentenceStart = index === 0 || 
+        (index > 0 && words[index-1].match(/[.!?]\s*$/));
+    
+    // If capitalized and not at sentence start, likely a proper noun
+    if (isCapitalized && !isProbablySentenceStart) {
+      score -= 15; // Significant penalty to avoid proper nouns
     }
+    
+    // For extra safety, check for known name patterns
+    if (/^(Mr|Mrs|Ms|Dr|Prof|Sir|Lady|Lord|Saint|St)\.\s*[A-Z]/.test(word)) {
+      score -= 20; // Even higher penalty for definite names
+    }
+    
+    // Old logic for capitalized words (now modified above)
+    // if (index > 0 && word[0] === word[0].toUpperCase() && word[0].match(/[A-Z]/)) {
+    //   score += 5;
+    // }
+    
     score += Math.random() * 2;
     return { index, score };
   })
@@ -281,14 +300,19 @@ export function renderRound() {
         input.type = 'text';
         input.dataset.index = String(idx);
         input.dataset.paragraph = String(pIdx);
-        input.placeholder = '_____';
-        // Enhanced styling for input boxes
-        // Determine approximate width based on original word length (including punctuation)
+        
         const originalWordWithPunctuation = paragraphsWords[pIdx][idx];
-        const approxWidth = Math.max(5, originalWordWithPunctuation.length * 8); // Minimum width 5 characters, 8px per char approx
+        // Generate placeholder underscores matching the word length
+        input.placeholder = '_'.repeat(originalWordWithPunctuation.length);
+        
+        // Set width based on character length using 'ch' unit, ensure min width
+        // Add a small buffer to prevent truncation, e.g., +2ch
+        const inputWidthCh = Math.max(5, originalWordWithPunctuation.length + 2); 
 
         input.className = `border-b-2 border-typewriter-ink mx-1 text-center bg-transparent focus:outline-none focus:border-typewriter-ribbon focus:ring-1 focus:ring-typewriter-ribbon rounded-sm px-1 py-0.5 text-typewriter-ink placeholder-typewriter-ink placeholder-opacity-50`;
-        input.style.width = `${approxWidth}px`;
+        // Using ch unit for better responsiveness based on character width
+        input.style.width = `${inputWidthCh}ch`; 
+        input.style.minWidth = '60px'; // Ensure a minimum clickable area
 
         // Add [i] icon if this blank has a hint
         const paragraphIdx = pIdx;
@@ -423,7 +447,7 @@ export function resetGame() {
 }
 
 import { fetchGutenbergPassage } from '@/main';
-import { runAgenticLoop } from '@/services/llmService';
+import { runAgenticLoop, tools as llmTools, getToolResponse, OpenRouterMessage, callLLM, TOOL_MAPPING } from '@/services/llmService';
 
 /**
  * Continues to the next round based on the user's performance.
@@ -453,17 +477,37 @@ export function continueToNextRound(passed: boolean) {
     // Increment round number
     round++;
     
-    // Progressive difficulty adjustment
-    if (round <= 3) {
-      // Rounds 1-3: One blank per round (1, 2, 3)
-      blanksCount = round;
-    } else if (round <= 5) {
-      // Rounds 4-5: Add blanks more gradually
-      blanksCount = 3 + Math.floor((round - 3) * 0.5);
-    } else {
-      // Round 6+: Limit to 5 blanks max, but increase passage difficulty
-      blanksCount = 5;
-      passageDifficulty = Math.min(5, 1 + Math.floor((round - 5) * 0.5));
+    // NEW: Structured difficulty gradient
+    switch(round) {
+      case 1:
+        // Level 1: Easy passage, 1 "easy" blank
+        blanksCount = 1;
+        passageDifficulty = 1;
+        break;
+      case 2:
+        // Level 2: Easy passage, 1 "moderate" blank
+        blanksCount = 1;
+        passageDifficulty = 1;
+        break;
+      case 3:
+        // Level 3: Moderate passage, 2 "moderate" blanks
+        blanksCount = 2;
+        passageDifficulty = 2;
+        break;
+      case 4:
+        // Level 4: Moderate passage, 2-3 "moderate" blanks
+        blanksCount = Math.floor(Math.random() * 2) + 2; // 2-3 blanks
+        passageDifficulty = 2;
+        break;
+      case 5:
+        // Level 5: Moderate-Hard passage, 3 blanks (mix of moderate and difficult)
+        blanksCount = 3;
+        passageDifficulty = 3;
+        break;
+      default:
+        // Higher rounds: Gradually increase difficulty
+        blanksCount = Math.min(5, 3 + Math.floor((round - 5) / 2)); // Cap at 5 blanks
+        passageDifficulty = Math.min(5, 3 + Math.floor((round - 5) / 3)); // Cap at difficulty 5
     }
     
     debugLog(`Round ${round}: blanks=${blanksCount}, difficulty=${passageDifficulty}`);
@@ -486,6 +530,7 @@ interface PassageData {
     author: string;
     id: number;
     canonicalUrl?: string; // Add optional canonical URL
+    factoid?: string; // Add optional factoid
   } | null;
 }
 
@@ -656,12 +701,44 @@ export async function startRound(forceNewPassage: boolean = false) {
       }
 
       if (bibliographicArea && passageData.metadata) {
-        // Display the metadata in the bibliographic area
-        bibliographicArea.innerHTML = `
+        let authorDisplayHTML = passageData.metadata.author; // Default to plain author name
+        let factoidDisplayHTML = ''; // Default to no factoid
+
+        // This try-catch block for fetching bookInfoResult is largely existing
+        try {
+          const bookInfoArgs = {
+            title: passageData.metadata.title,
+            author: passageData.metadata.author,
+            gutenbergId: passageData.metadata.id?.toString()
+          };
+          const bookInfoResult = await TOOL_MAPPING.getBookAuthorInfo(bookInfoArgs) as { factoid?: string; validatedUrl?: string };
+
+          if (bookInfoResult) {
+            passageData.metadata.factoid = bookInfoResult.factoid; // Store for consistency
+            passageData.metadata.canonicalUrl = bookInfoResult.validatedUrl; // Store for consistency
+
+            // NEW: If validatedUrl exists, make the author's name the link
+            if (bookInfoResult.validatedUrl) {
+              authorDisplayHTML = `<a href="${bookInfoResult.validatedUrl}" target="_blank" rel="noopener noreferrer" class="text-typewriter-ribbon hover:underline">${passageData.metadata.author}</a>`;
+            }
+            // Factoid display
+            if (bookInfoResult.factoid) {
+              factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${bookInfoResult.factoid}</p>`;
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching book/author info:", error);
+          // authorDisplayHTML will remain plain text, factoidDisplayHTML will be empty
+        }
+
+        // Construct the final HTML for the bibliographic area
+        const biblioHTML = `
           <h2 class="text-xl font-semibold mb-2 typewriter-text">${passageData.metadata.title}</h2>
-          <p class="typewriter-text">By ${passageData.metadata.author}</p>
+          <p class="typewriter-text">By ${authorDisplayHTML}</p>
+          ${factoidDisplayHTML}
         `;
-        
+        bibliographicArea.innerHTML = biblioHTML;
+
         // Add to previous books history if not already
         previousBooks.push({
           title: passageData.metadata.title,
@@ -742,11 +819,44 @@ export async function startRound(forceNewPassage: boolean = false) {
 
       // Display the metadata
       if (bibliographicArea && passageData.metadata) {
-        bibliographicArea.innerHTML = `
+        let authorDisplayHTML = passageData.metadata.author; // Default to plain author name
+        let factoidDisplayHTML = ''; // Default to no factoid
+
+        // This try-catch block for fetching bookInfoResult is largely existing
+        try {
+          const bookInfoArgs = {
+            title: passageData.metadata.title,
+            author: passageData.metadata.author,
+            gutenbergId: passageData.metadata.id?.toString()
+          };
+          const bookInfoResult = await TOOL_MAPPING.getBookAuthorInfo(bookInfoArgs) as { factoid?: string; validatedUrl?: string };
+
+          if (bookInfoResult) {
+            passageData.metadata.factoid = bookInfoResult.factoid; // Store for consistency
+            passageData.metadata.canonicalUrl = bookInfoResult.validatedUrl; // Store for consistency
+
+            // NEW: If validatedUrl exists, make the author's name the link
+            if (bookInfoResult.validatedUrl) {
+              authorDisplayHTML = `<a href="${bookInfoResult.validatedUrl}" target="_blank" rel="noopener noreferrer" class="text-typewriter-ribbon hover:underline">${passageData.metadata.author}</a>`;
+            }
+            // Factoid display
+            if (bookInfoResult.factoid) {
+              factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${bookInfoResult.factoid}</p>`;
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching book/author info for newly fetched passage:", error);
+          // authorDisplayHTML will remain plain text, factoidDisplayHTML will be empty
+        }
+
+        // Construct the final HTML for the bibliographic area
+        const biblioHTML = `
           <h2 class="text-xl font-semibold mb-2 typewriter-text">${passageData.metadata.title}</h2>
-          <p class="typewriter-text">By ${passageData.metadata.author}</p>
+          <p class="typewriter-text">By ${authorDisplayHTML}</p>
+          ${factoidDisplayHTML}
         `;
-        
+        bibliographicArea.innerHTML = biblioHTML;
+
         // Add to previous books history
         previousBooks.push({
           title: passageData.metadata.title,
@@ -866,8 +976,9 @@ export function handleSubmission() {
     const paragraphIdx = parseInt(input.dataset.paragraph || '0', 10);
     const wordIdx = parseInt(input.dataset.index || '0', 10);
     
-    // Get the original word
-    const originalWord = paragraphsWords[paragraphIdx][wordIdx];
+    // Get the original word and strip trailing punctuation for comparison
+    let originalWordWithPunctuation = paragraphsWords[paragraphIdx][wordIdx];
+    const originalWord = originalWordWithPunctuation.replace(/[.,!?;:]+$/, ''); // Remove trailing punctuation
     
     // Compare user input to original word (case-insensitive)
     const userInput = input.value.trim();
@@ -887,25 +998,28 @@ export function handleSubmission() {
   // Update UI
   resultArea.innerHTML = `<p class="mb-2">Score: ${correctCount}/${totalBlanks} (${scorePercentage.toFixed(0)}%)</p>`;
   
-  // Highlight correct/incorrect answers
+  // Highlight correct/incorrect answers with improved styling
   correctInputs.forEach(input => {
-    input.classList.add('bg-green-100');
-    input.classList.add('text-green-800');
+    // Focus on text color instead of background for better visibility
+    input.classList.add('text-green-700'); // Darker green for better contrast
+    input.style.fontWeight = 'bold'; // Make it stand out
     input.disabled = true;
   });
   
   incorrectInputs.forEach(input => {
-    input.classList.add('bg-red-100');
-    input.classList.add('text-red-800');
+    // Focus on text color instead of background for better visibility
+    input.classList.add('text-red-700'); // Soft dark red for better contrast
+    input.style.fontWeight = 'bold'; // Make it stand out
     input.disabled = true;
     
-    // Add the correct answer after this input
+    // Add the correct answer after this input (show the version without punctuation)
     const paragraphIdx = parseInt(input.dataset.paragraph || '0', 10);
     const wordIdx = parseInt(input.dataset.index || '0', 10);
-    const originalWord = paragraphsWords[paragraphIdx][wordIdx];
+    const originalWordWithPunctuation = paragraphsWords[paragraphIdx][wordIdx];
+    const originalWord = originalWordWithPunctuation.replace(/[.,!?;:]+$/, ''); // Get the clean word for display
     
     const correction = document.createElement('span');
-    correction.className = 'text-xs block text-red-600 mt-1';
+    correction.className = 'text-xs block text-red-700 mt-1 font-semibold'; // Enhanced visibility
     correction.textContent = `Correct: ${originalWord}`;
     input.parentNode?.insertBefore(correction, input.nextSibling);
   });
@@ -913,21 +1027,21 @@ export function handleSubmission() {
   // Determine if passed (>= 70%)
   const passed = scorePercentage >= 70;
   
-  // Add continue button to move to next round
-  const continueButton = document.createElement('button');
-  continueButton.id = 'continue-btn';
-  continueButton.className = 'mt-4 px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm';
-  continueButton.textContent = 'Continue';
-  continueButton.onclick = () => {
-    // Increment round if passed, otherwise stay on same round
-    if (passed) {
-      round++;
-      blanksCount = Math.min(blanksCount + 1, 10); // Increase blanks, max 10
-    }
-    continueToNextRound(passed);
-  };
-  
-  resultArea.appendChild(continueButton);
+  // Show the existing Continue button in game controls and set up its functionality
+  const continueButton = document.getElementById('continue-btn');
+  if (continueButton) {
+    continueButton.style.display = 'flex'; // Show the button
+    continueButton.onclick = () => {
+      // Hide the button again after clicking
+      continueButton.style.display = 'none';
+      // Increment round if passed, otherwise stay on same round
+      if (passed) {
+        round++;
+        blanksCount = Math.min(blanksCount + 1, 10); // Increase blanks, max 10
+      }
+      continueToNextRound(passed);
+    };
+  }
   
   // Disable hint and submit buttons
   submitBtn.disabled = true;

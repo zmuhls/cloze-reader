@@ -21,52 +21,60 @@ body {
 
 /* Fix for spacing between words and layout */
 .typewriter-text {
-  word-spacing: 0.2em;
-  white-space: normal;
-  overflow-wrap: break-word;
-  word-wrap: break-word; /* Add for broader compatibility */
-  line-height: 1.8;
-  margin-bottom: 0.5rem;
+  word-spacing: 0.1em; /* Slightly reduced for better fit */
+  white-space: normal; /* Allow normal wrapping */
+  overflow-wrap: break-word; /* Standard property for word wrapping */
+  word-wrap: break-word; /* Older property for compatibility */
+  line-height: 1.8; /* Maintain good line height */
+  margin-bottom: 0.75rem; /* Consistent paragraph spacing */
+  display: inline; /* Default to inline for spans within paragraphs */
 }
 
 /* Ensure text within the welcome overlay wraps correctly */
 #welcome-overlay .typewriter-text {
-  word-break: break-word; /* Prefer break-word for readability */
-  overflow-wrap: break-word; /* Ensure consistency */
-  word-wrap: break-word; /* Ensure consistency */
+  word-break: break-word; 
+  overflow-wrap: break-word;
+  word-wrap: break-word; 
 }
 
-/* Fix word wrapping */
+/* General prose styling for responsive text */
 .prose {
-  max-width: 100% !important;
+  max-width: 100% !important; /* Ensure it doesn't exceed container */
   width: 100%;
   overflow-wrap: break-word;
-  word-wrap: break-word; /* Add for broader compatibility */
-  word-break: break-word; /* Ensure consistency */
+  word-wrap: break-word;
+  word-break: break-word; /* Allow breaking long words if necessary */
 }
 
-/* Game area formatting */
+/* Game area formatting for responsiveness */
 #game-area {
   padding: 1rem !important;
   border-radius: 0.5rem;
   border: 1px solid rgba(0, 0, 0, 0.1);
   background-color: theme('colors.aged-paper');
-  max-width: 100%;
-  overflow-x: hidden;
+  max-width: 100%; /* Ensure it uses full available width */
+  overflow-x: hidden; /* Prevent horizontal scrolling */
   display: flex;
   flex-direction: column;
+  min-height: 200px; /* Ensure a minimum height for content visibility */
 }
 
-/* Fix word display */
+/* Ensure individual words (spans) within typewriter-text flow correctly */
 span.typewriter-text {
-  display: inline;
-  margin-right: 0;
+  display: inline; /* Keep spans inline to flow with text */
+  margin-right: 0; /* No extra margin for individual spans */
+  vertical-align: baseline; /* Align with surrounding text */
 }
 
-/* Ensure paragraphs are properly separated */
+/* Ensure paragraphs are properly separated and wrap */
 p.typewriter-text {
-  display: block;
-  margin-bottom: 1.5rem;
+  display: block; /* Paragraphs should be block elements */
+  margin-bottom: 1.5rem; /* Space between paragraphs */
+  /* Ensure text within paragraphs also wraps correctly */
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto; /* Allow hyphenation for better word wrapping */
 }
 
 /* Dialogue formatting with tighter spacing */
@@ -79,44 +87,55 @@ p.typewriter-text[data-dialogue="true"] {
   margin: 15px 0;
 }
 
-/* Fix word wrapping */
-.prose {
-  max-width: 100% !important;
-  width: 100%;
-  overflow-wrap: break-word;
-}
-
-/* Typewriter Input Field Styling */
-input[type="text"] {
+/* Typewriter Input Field Styling - Enhanced for Responsiveness */
+input[type="text"].border-b-2 { /* Target specific inputs to avoid affecting others */
   font-family: 'Special Elite', 'Courier New', monospace;
-  border-bottom-width: 1px;
+  border-bottom-width: 1px; /* Keep consistent base border */
   border-bottom-style: solid;
   background-color: transparent;
   transition: all 0.2s ease;
-  min-width: 5rem;
-  width: auto;
-  padding: 0 0.5rem;
-  margin: 0 0.25rem;
+  /* width is now set dynamically via JS using 'ch' units */
+  /* min-width is set via JS to '60px' */
+  max-width: 90%; /* Prevent inputs from becoming excessively wide on large screens */
+  padding: 0.1rem 0.25rem; /* Adjust padding for better fit */
+  margin: 0 0.15rem; /* Adjust margin */
+  box-sizing: border-box; /* Include padding and border in element's total width and height */
+  vertical-align: baseline; /* Align with surrounding text */
+  line-height: inherit; /* Inherit line height from parent */
+  font-size: inherit; /* Inherit font size */
+  letter-spacing: inherit; /* Inherit letter spacing */
 }
 
-input[type="text"]::placeholder {
-  opacity: 0.5;
+input[type="text"].border-b-2::placeholder {
+  opacity: 0.6; /* Slightly more visible placeholder */
+  color: theme('colors.typewriter-ink'); /* Ensure placeholder color matches theme */
+  font-family: 'Special Elite', 'Courier New', monospace; /* Ensure placeholder font matches */
+  letter-spacing: 0.05em; /* Match letter spacing for underscores */
 }
 
-input[type="text"]:focus {
+input[type="text"].border-b-2:focus {
   outline: none;
-  border-bottom-width: 2px;
+  border-bottom-width: 2px; /* Emphasize focus */
+  border-color: theme('colors.typewriter-ribbon'); /* Use ribbon color for focus */
 }
 
-/* Typewriter Cursor Animation */
+/* Typewriter Cursor Animation - No changes needed here */
 @keyframes typewriter-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
 
-input[type="text"]:focus::after {
+/* Apply blink to focused input, consider if ::after is best or a separate element */
+/* For simplicity, this example assumes direct styling. A more robust solution might use a sibling span. */
+/* input[type="text"]:focus::after {
   content: '|';
   animation: typewriter-blink 1s step-end infinite;
+} */
+
+/* Ensure hint icon aligns well with input */
+.hint-info-icon {
+  vertical-align: middle; /* Align icon with the middle of the text/input */
+  display: inline-block; /* Ensure it behaves well with surrounding elements */
 }
 
 /* Typewriter Button Styling */
@@ -531,66 +550,124 @@ header .flex.flex-wrap.justify-end.items-center {
   cursor: not-allowed;
 }
 
+/* Styles for the container holding Submit and Continue buttons */
+.game-buttons-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* Align items to the right */
+  gap: 0.5rem; /* Space between buttons */
+}
+
 
 /* Ensure game area handles overflow and responsiveness */
 #game-area {
-  overflow-x: hidden; /* Prevent horizontal scroll */
-  overflow-wrap: break-word; /* Standardize word wrapping */
-  word-break: break-word; /* Ensure long words break */
+  overflow-x: hidden; 
+  overflow-y: auto; /* Allow vertical scroll if content exceeds height */
+  overflow-wrap: break-word; 
+  word-break: break-word; 
+  flex-grow: 1; /* Allow game area to take available space */
+  min-height: 30vh; /* Ensure it has some minimum height */
 }
 
 /* Center round-info text */
 #round-info {
   text-align: center;
-  display: block; /* Make it a block to allow text-align to work */
+  display: block; 
   width: 100%;
-  margin-top: 0.5rem; /* Add some space if needed */
+  margin-top: 0.5rem; 
+}
+
+/* Responsive base layout and mobile zoom prevention */
+html {
+  -webkit-text-size-adjust: 100%; /* Prevent iOS text size adjustment */
+  -ms-text-size-adjust: 100%; /* Prevent IE text size adjustment */
+}
+
+body {
+  min-width: 320px; /* Minimum width for very small devices */
+}
+
+/* Prevent zoom on input focus on mobile devices */
+input[type="text"], textarea {
+  font-size: 16px !important; /* Setting font-size to 16px or higher often prevents auto-zoom on iOS */
 }
 
 
 /* Add responsive base layout */
-@media screen and (max-width: 480px) {
+@media screen and (max-width: 640px) { /* Adjusted breakpoint for better targeting */
   html, body {
-    font-size: 14px; /* Slightly smaller base font on very small screens */
+    font-size: 15px; /* Slightly adjusted base font for small-medium screens */
   }
   
-  .container {
-    padding: 0.5rem !important; /* Reduce padding on small screens */
+  main#app { /* Target the main app container for padding */
+    padding: 0.75rem; /* Reduce padding on smaller screens */
   }
   
   button {
-    min-width: 100px; /* Allow buttons to be smaller on mobile */
-    min-height: 36px; /* Allow buttons to be smaller on mobile */
+    min-width: 90px; 
+    min-height: 38px; 
+    font-size: 0.875rem; /* Slightly smaller font for buttons */
+  }
+
+  #game-area {
+    padding: 0.75rem !important; /* Reduce padding inside game area */
+  }
+
+  input[type="text"].border-b-2 {
+    /* Ensure inputs don't get too small or too large */
+    min-width: 50px; 
+    max-width: 80%; /* Allow them to shrink but not exceed a certain percentage */
+  }
+}
+
+@media screen and (max-width: 480px) {
+  html, body {
+    font-size: 14px; 
+  }
+  
+  main#app {
+    padding: 0.5rem; 
+  }
+
+  button {
+    min-width: 80px; 
+    min-height: 36px; 
+  }
+   input[type="text"].border-b-2 {
+    min-width: 40px;
   }
 }
 
 /* Add landscape orientation support */
 @media screen and (max-height: 480px) and (orientation: landscape) {
   #welcome-overlay .bg-aged-paper {
-    max-height: 80vh; /* Adjust for landscape */
-    width: 85%; /* Make overlay narrower in landscape */
-    padding: 1rem !important; /* Less padding in landscape */
+    max-height: 85vh; /* Adjust for landscape */
+    width: 90%; 
+    padding: 1rem !important; 
   }
   
   button {
-    min-height: 32px; /* Smaller buttons in landscape */
+    min-height: 32px; 
+    font-size: 0.8rem;
   }
   
   #game-area, #teaching-area {
-    padding: 0.75rem !important; /* Reduced padding in landscape */
+    padding: 0.5rem !important; 
+    min-height: 25vh;
   }
   
-  /* Optimize layout for landscape */
   header .flex.space-x-4 {
-    flex-direction: row !important; /* Keep controls horizontal in landscape */
+    flex-direction: row !important; 
     flex-wrap: wrap;
     justify-content: center;
   }
   
-  /* Allow better use of horizontal space */
   header .flex.space-x-4 > * {
-    width: auto !important; /* Don't force full width */
+    width: auto !important; 
     margin-right: 0.5rem;
+  }
+  input[type="text"].border-b-2 {
+    font-size: 15px !important; /* Slightly smaller to fit landscape */
   }
 }
 

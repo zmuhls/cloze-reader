@@ -132,16 +132,29 @@ export async function fetchParquetFiles(split: string = "de"): Promise<string[]>
   }
 }
 
+import { searchLocalGutenbergBooks } from './localGutenbergService';
+
 /**
  * Searches for books in the Project Gutenberg dataset matching the given criteria.
+ * Uses the local dataset if available, otherwise falls back to the remote API.
  */
 export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Promise<HuggingFaceBook[]> {
+  // Try local dataset first
   try {
-    // Default to "de" split (German) as per example URL, but we should change this based on needs
+    const localBooks = await searchLocalGutenbergBooks(args);
+    if (localBooks && localBooks.length > 0) {
+      debugLog("Using local Project Gutenberg dataset for search.");
+      return localBooks;
+    }
+  } catch (localError) {
+    debugLog("Local dataset access failed, falling back to HuggingFace API", { error: localError });
+  }
+
+  // Fallback to remote API
+  try {
     const split = args.language === "de" ? "de" : "default";
     const offset = args.offset || 0;
     const length = args.limit || 100;
-    
     const url = `https://datasets-server.huggingface.co/rows?dataset=manu%2Fproject_gutenberg&config=default&split=${split}&offset=${offset}&length=${length}`;
     debugLog("Searching Project Gutenberg dataset from HuggingFace", { 
       url, 
@@ -150,21 +163,18 @@ export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Prom
       length,
       searchCriteria: args 
     });
-    
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch books: ${response.status}`);
     }
-    
     const data: HuggingFaceDatasetResponse = await response.json();
     let books = data.rows;
-    
-    // Apply filters based on search criteria
+
+    // Apply filters based on search criteria (same as before)
     if (args.author) {
       const authorLower = args.author.toLowerCase();
       books = books.filter(book => book.author && book.author.toLowerCase().includes(authorLower));
     }
-    
     if (args.bookshelf) {
       books = books.filter(book => {
         if (!book.bookshelves) return false;
@@ -173,7 +183,6 @@ export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Prom
         );
       });
     }
-    
     if (args.subject) {
       books = books.filter(book => {
         if (!book.subjects) return false;
@@ -182,47 +191,35 @@ export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Prom
         );
       });
     }
-    
-    // Filter by century if needed
     if (args.century) {
       const range = centuryToYearRange(args.century);
       if (range) {
-        const centuryNum = Math.floor(range.start / 100) + 1; // Convert year to century number (e.g., 1500 -> 16th)
-        const yearPrefix = Math.floor(range.start / 100); // Just the first 2 digits (e.g., 1500 -> 15)
-        
+        const centuryNum = Math.floor(range.start / 100) + 1;
+        const yearPrefix = Math.floor(range.start / 100);
         books = books.filter(book => {
-          // Look for multiple patterns in subjects and bookshelves
           const centuryPatterns = [
-            `${centuryNum}th century`, // e.g., "16th century" for 1500s
-            `${yearPrefix}00s`,        // e.g., "1500s" 
-            `${range.start}s`,         // e.g., "1500s"
-            `${yearPrefix}00's`,       // e.g., "1500's"
-            `${yearPrefix}00-`,        // e.g., "1500-" (for date ranges)
-            `${range.start}-`          // e.g., "1500-" (for date ranges)
+            `${centuryNum}th century`,
+            `${yearPrefix}00s`,
+            `${range.start}s`,
+            `${yearPrefix}00's`,
+            `${yearPrefix}00-`,
+            `${range.start}-`
           ];
-          
-          // Check subjects array
           const inSubjects = book.subjects ? book.subjects.some(subj => {
             const lowerSubj = subj.toLowerCase();
             return centuryPatterns.some(pattern => lowerSubj.includes(pattern.toLowerCase()));
           }) : false;
-          
-          // Check bookshelves array
           const inBookshelves = book.bookshelves ? book.bookshelves.some(shelf => {
             const lowerShelf = shelf.toLowerCase();
             return centuryPatterns.some(pattern => lowerShelf.includes(pattern.toLowerCase()));
           }) : false;
-          
           return inSubjects || inBookshelves;
         });
       }
     }
-    
-    // Exclude IDs if provided
     if (args.excludeIds && args.excludeIds.length > 0) {
       books = books.filter(book => !args.excludeIds!.includes(book.id));
     }
-    
     return books;
   } catch (error) {
     console.error("Error searching Gutenberg books:", error);

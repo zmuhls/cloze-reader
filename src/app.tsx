@@ -207,7 +207,7 @@ const App = () => {
               Analysis
             </button>
             {/* Container for Submit and Continue buttons to align them vertically and flush right */}
-            <div className="flex flex-col items-end gap-2">
+            <div className="game-buttons-container flex flex-col items-end gap-2">
               <button
                 id="submit-btn"
                 className="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
