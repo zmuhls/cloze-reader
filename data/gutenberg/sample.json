@@ -1,0 +1,68 @@
+[
+  {
+    "id": 11,
+    "title": "Alice's Adventures in Wonderland",
+    "author": "Lewis Carroll",
+    "text": "Alice was beginning to get very tired of sitting by her sister on the bank...",
+    "language": "en",
+    "subjects": [
+      "Fantasy"
+    ],
+    "bookshelves": [
+      "Children's Literature"
+    ]
+  },
+  {
+    "id": 1342,
+    "title": "Pride and Prejudice",
+    "author": "Jane Austen",
+    "text": "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife...",
+    "language": "en",
+    "subjects": [
+      "Romance"
+    ],
+    "bookshelves": [
+      "Best Books Ever Listings"
+    ]
+  },
+  {
+    "id": 1661,
+    "title": "The Adventures of Sherlock Holmes",
+    "author": "Arthur Conan Doyle",
+    "text": "To Sherlock Holmes she is always _the_ woman...",
+    "language": "en",
+    "subjects": [
+      "Detective and mystery stories"
+    ],
+    "bookshelves": [
+      "Detective Fiction"
+    ]
+  },
+  {
+    "id": 84,
+    "title": "Frankenstein; Or, The Modern Prometheus",
+    "author": "Mary Wollstonecraft Shelley",
+    "text": "You will rejoice to hear that no disaster has accompanied the commencement of an enterprise which you have regarded with such evil forebodings...",
+    "language": "en",
+    "subjects": [
+      "Gothic fiction"
+    ],
+    "bookshelves": [
+      "Horror",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 1952,
+    "title": "The Yellow Wallpaper",
+    "author": "Charlotte Perkins Gilman",
+    "text": "It is very seldom that mere ordinary people like John and myself secure ancestral halls for the summer...",
+    "language": "en",
+    "subjects": [
+      "Feminist fiction"
+    ],
+    "bookshelves": [
+      "Short Stories"
+    ]
+  }
+]
