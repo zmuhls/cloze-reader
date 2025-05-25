@@ -13,7 +13,13 @@ This project is deployed on GitHub Pages via a GitHub Actions workflow.
 
 ## How to Play
 
-(Instructions on how to play the game would go here)
+1. Click "Start Game" to fetch a passage.
+2. Read the passage—some words will be hidden (cloze deletions).
+3. Type your guesses for the missing words in the blanks.
+4. Submit your answers to see which are correct.
+5. Continue to the next round or try a new passage.
+
+You can adjust settings such as difficulty and source book in the options menu.
 
 ## Development
 
@@ -97,3 +103,83 @@ graph TD
 ```
 
 *Diagram updated on 5/23/2025*
+
+## Codebase Structure
+
+```mermaid
+graph TD
+    %% Main Entry Points
+    Main[main.ts] --> App[app.tsx]
+    
+    %% Core Services
+    GameLogic[gameLogic.ts] --> GutenbergService[gutenbergService.ts]
+    GutenbergService --> LLMService[llmService.ts]
+    Main --> GameLogic
+    App --> GameLogic
+    
+    %% Data Types and Utilities
+    GutenbergTypes[gutenbergTypes.ts] --> GutenbergService
+    GutenbergTypes --> LLMService
+    EnvironmentConfig[environmentConfig.ts] --> GutenbergService
+    EnvironmentConfig --> LLMService
+    ErrorHandling[errorHandling.ts] --> GutenbergService
+    ErrorHandling --> GameLogic
+    ErrorHandling --> LLMService
+    CacheValidation[cacheValidation.ts] --> GameLogic
+    DebugLog[debugLog.ts] --> GameLogic
+    DebugLog --> GutenbergService
+    DebugLog --> LLMService
+    
+    %% UI Components
+    App --> WelcomeOverlay[WelcomeOverlay.tsx]
+    App --> SettingsFooter[SettingsFooter.tsx]
+    SettingsFooter --> ApiConfiguration[ApiConfiguration.tsx]
+    SettingsFooter --> QueryOptions[QueryOptions.tsx]
+    SettingsFooter --> GameSettings[GameSettings.tsx]
+    
+    %% External Services
+    GutenbergService --> HuggingFaceAPI[Hugging Face Datasets API]
+    LLMService --> OpenRouterAPI[OpenRouter API]
+    
+    %% Data Flow
+    HuggingFaceAPI --> BookData[Book Data]
+    BookData --> GutenbergService
+    GutenbergService --> Passages[Processed Passages]
+    Passages --> GameLogic
+    GameLogic --> RedactedPassages[Redacted Passages]
+    RedactedPassages --> App
+    
+    %% User Interaction
+    User([User]) --> App
+    App --> User
+    
+    %% Subgraphs for Organization
+    subgraph "Core Services"
+        GameLogic
+        GutenbergService
+        LLMService
+    end
+    
+    subgraph "UI Components"
+        WelcomeOverlay
+        SettingsFooter
+        ApiConfiguration
+        QueryOptions
+        GameSettings
+    end
+    
+    subgraph "Utilities"
+        EnvironmentConfig
+        ErrorHandling
+        CacheValidation
+        DebugLog
+        GutenbergTypes
+    end
+    
+    subgraph "External APIs"
+        HuggingFaceAPI
+        OpenRouterAPI
+    end
+```
+
+*Diagram updated on 5/25/2025*
