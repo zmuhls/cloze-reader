@@ -123,10 +123,10 @@ export function setUserApiKey(key: string, type: 'openrouter' | 'huggingface'): 
 
   switch (type) {
     case 'openrouter':
-      isValid = trimmedKey && trimmedKey.startsWith('sk-or-') && trimmedKey.length > 20;
+      isValid = trimmedKey !== '' && trimmedKey.startsWith('sk-or-') && trimmedKey.length > 20;
       break;
     case 'huggingface':
-      isValid = trimmedKey && trimmedKey.startsWith('hf_') && trimmedKey.length > 20;
+      isValid = trimmedKey !== '' && trimmedKey.startsWith('hf_') && trimmedKey.length > 20;
       break;
   }
 

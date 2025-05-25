@@ -6,35 +6,27 @@ import { debugLog } from '@/utils/debugLog';
 // Import the environment configuration utilities
 import { getEnvironmentConfig, isUsingUserProvidedApiKey } from '@/utils/environmentConfig';
 // Import HuggingFace Project Gutenberg API functions and types
-import { 
-  searchGutenbergBooks, 
+import {
+  searchGutenbergBooks,
   getBookText,
-  enhanceSearchWithLLM
+  enhanceSearchWithLLM,
+  extractParagraphsFromMiddle, // Import from gutenbergService
+  scoreParagraphQuality // Import from gutenbergService
 } from '@/services/gutenbergService';
 import { HuggingFaceBook, parseBookshelf, SearchGutenbergBooksArgs } from '@/services/gutenbergTypes'; // Moved types
 import { runAgenticLoop, OpenRouterMessage } from '@/services/llmService';
 // Import game logic functions and state, including startRound and handleSubmission
-import { 
-  initializeGameDOMElements, 
-  resetGame as gameLogicResetGame, 
-  startRound as gameLogicStartRound, 
+import {
+  initializeGameDOMElements,
+  resetGame as gameLogicResetGame,
+  startRound as gameLogicStartRound,
   handleSubmission as gameLogicHandleSubmission
 } from '@/services/gameLogic';
 
 
 // --- Game Specific API Functions ---
-// fetchGutenbergPassage is now exported for use in gameLogic.ts
-export interface PassageData { // Exporting for gameLogic
-  paragraphs: string[];
-  metadata: {
-    title: string;
-    author: string;
-    id: number;
-    century?: string;
-    canonicalUrl?: string;
-    factoid?: string; // Add optional factoid
-  } | null;
-}
+// PassageData is now defined in gutenbergService.ts
+import type { PassageData } from '@/services/gutenbergService';
 
 /**
  * Get static fallback passages when API access is not available
@@ -68,145 +60,12 @@ Throughout history, literature has served as a mirror reflecting the values, con
   };
 }
 
-// Function removed - we only use Hugging Face dataset API
 
-/**
- * Extracts 2-3 high-quality paragraphs from the middle of a book's text.
- * Improved with better content detection and text quality scoring.
- */
-function extractParagraphsFromMiddle(text: string): string[] {
-  // Clean up the text more thoroughly
-  const cleanText = text
-    .replace(/\r\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n') // Normalize excessive newlines
-    .replace(/[^\S\n]+/g, ' ') // Normalize whitespace but preserve newlines
-    .replace(/^\s+|\s+$/gm, ''); // Trim each line
-  
-  // Split into paragraphs
-  const allParagraphs = cleanText
-    .split(/\n\n+/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
-  
-  // If we don't have enough paragraphs, return empty array
-  if (allParagraphs.length < 8) {
-    return [];
-  }
-  
-  // Enhanced filtering with quality scoring
-  const contentParagraphs = allParagraphs
-    .filter(p => {
-      // Basic content filters
-      const hasGutenbergContent = p.includes('Project Gutenberg') ||
-        p.includes('www.gutenberg.org') ||
-        p.includes('Produced by') ||
-        p.includes('COPYRIGHT') ||
-        p.includes('All rights reserved');
-        
-      const hasStructuralMarkers = p.match(/^\*\*\*/) ||
-        p.match(/^\[/) ||
-        p.includes('THE END') ||
-        p.includes('THE BEGINNING') ||
-        p.match(/^CHAPTER\s+[IVXLCDM\d]+/i) ||
-        p.match(/^[IVXLCDM]+\.\s/) ||
-        p.match(/^\d+\.\s/);
-        
-      const isMinimalContent = p.length < 120 || p.split(/\s+/).length < 20;
-      
-      // Check for dialogue-heavy content (less suitable for cloze)
-      const quoteCount = (p.match(/"/g) || []).length;
-      const isDialogueHeavy = quoteCount > 4;
-      
-      return !hasGutenbergContent && !hasStructuralMarkers && !isMinimalContent && !isDialogueHeavy;
-    })
-    .map(p => ({
-      text: p,
-      score: scoreParagraphQuality(p)
-    }))
-    .filter(p => p.score > 0.6) // Only keep high-quality paragraphs
-    .sort((a, b) => b.score - a.score); // Sort by quality
-  
-  // If we don't have enough high-quality paragraphs, return empty array
-  if (contentParagraphs.length < 3) {
-    return [];
-  }
-  
-  // Take paragraphs from different sections to ensure variety
-  const quarterPoint = Math.floor(contentParagraphs.length / 4);
-  const midPoint = Math.floor(contentParagraphs.length / 2);
-  const threeQuarterPoint = Math.floor(contentParagraphs.length * 3 / 4);
-  
-  const sections = [
-    contentParagraphs.slice(quarterPoint, midPoint),
-    contentParagraphs.slice(midPoint, threeQuarterPoint)
-  ].filter(section => section.length > 0);
-  
-  const selectedParagraphs: string[] = [];
-  
-  // Pick one paragraph from each available section
-  for (let i = 0; i < Math.min(2, sections.length); i++) {
-    const section = sections[i];
-    if (section.length > 0) {
-      const randomIndex = Math.floor(Math.random() * Math.min(3, section.length)); // Pick from top 3 in section
-      selectedParagraphs.push(section[randomIndex].text);
-    }
-  }
-  
-  return selectedParagraphs;
-}
-
-/**
- * Scores paragraph quality for cloze test suitability
- */
-function scoreParagraphQuality(paragraph: string): number {
-  let score = 0.5; // Base score
-  
-  const words = paragraph.split(/\s+/);
-  const sentences = paragraph.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  
-  // Length scoring (optimal range)
-  if (words.length >= 25 && words.length <= 60) {
-    score += 0.2;
-  } else if (words.length >= 20 && words.length <= 80) {
-    score += 0.1;
-  }
-  
-  // Sentence structure scoring
-  if (sentences.length >= 2 && sentences.length <= 4) {
-    score += 0.15;
-  }
-  
-  // Vocabulary diversity
-  const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^\w]/g, '')));
-  const diversityRatio = uniqueWords.size / words.length;
-  if (diversityRatio > 0.7) {
-    score += 0.15;
-  } else if (diversityRatio > 0.6) {
-    score += 0.1;
-  }
-  
-  // Penalize excessive punctuation or formatting
-  const punctuationCount = (paragraph.match(/[^\w\s]/g) || []).length;
-  const punctuationRatio = punctuationCount / paragraph.length;
-  if (punctuationRatio > 0.1) {
-    score -= 0.1;
-  }
-  
-  // Prefer narrative prose over lists or fragmented text
-  const hasNarrativeFlow = !paragraph.match(/^\s*[-\*\d]+\./m) && 
-    !paragraph.includes('\n') &&
-    sentences.length > 1;
-  if (hasNarrativeFlow) {
-    score += 0.1;
-  }
-  
-  return Math.max(0, Math.min(1, score));
-}
 
 
 /**
  * Fetches a passage from Project Gutenberg using Hugging Face dataset API.
- * This function exclusively uses the Hugging Face API and does not rely on any local data.
+ * This function now orchestrates calls to gutenbergService.ts.
  */
 export async function fetchGutenbergPassage(
   category: string | null = null,
@@ -214,12 +73,11 @@ export async function fetchGutenbergPassage(
   century: string | null = null,
   initialAttemptedBookIds: number[] = []
 ): Promise<PassageData | null> {
-  debugLog("Fetching Gutenberg passage from Hugging Face dataset", { 
-    category, 
-    author, 
-    century, 
-    initialAttemptedBookIds,
-    endpoint: "https://huggingface.co/api/datasets/manu/project_gutenberg/parquet/default"
+  debugLog("Fetching Gutenberg passage via orchestrator", {
+    category,
+    author,
+    century,
+    initialAttemptedBookIds
   });
 
   // Use static fallback if forced
@@ -229,82 +87,46 @@ export async function fetchGutenbergPassage(
   }
 
   try {
-    // Search for a book using only Hugging Face dataset
-    const searchArgs: SearchGutenbergBooksArgs = {
+    // Use the function from gutenbergService to get a random book
+    const books = await searchGutenbergBooks({
       bookshelf: category ? parseBookshelf(category) : undefined,
       author: author || undefined,
       century: century || undefined,
       excludeIds: initialAttemptedBookIds,
       limit: 25, // Increased limit for better results
       language: 'en' // Default to English books
-    };
+    });
 
-    // Get books directly from Hugging Face dataset API with improved error handling
-    let books = [];
-    try {
-      books = await searchGutenbergBooks(searchArgs);
-      
-      // Log some debug information about the response
-      debugLog("Hugging Face API response", {
-        booksReceived: books.length,
-        firstBookTitle: books.length > 0 ? books[0].title : "No books found"
-      });
-      
-      // If no books returned from the API, use static fallback
-      if (!books || books.length === 0) {
-        debugLog("No books returned from Hugging Face API, using fallback");
-        return getStaticFallbackPassage(category);
-      }
-    } catch (error) {
-      console.error("Error fetching books from Hugging Face API:", error);
-      debugLog("API error details:", { 
-        message: error instanceof Error ? error.message : String(error), 
-        endpoint: "https://huggingface.co/api/datasets/manu/project_gutenberg/parquet/default" 
-      });
-      return getStaticFallbackPassage(category);
-    }
-    
-    // If we have search criteria, try to enhance results with LLM
-    const hasSearchCriteria = category || author || century;
-    if (hasSearchCriteria && books.length > 0) {
-      const criteria = [];
-      if (author) criteria.push(`by ${author}`);
-      if (category) criteria.push(`in category ${category}`);
-      if (century) criteria.push(`from ${century}th century`);
-      const query = criteria.join(' ');
-      
-      books = await enhanceSearchWithLLM(books, query);
+    if (!books || books.length === 0) {
+       debugLog("No books returned from searchGutenbergBooks");
+       throw new Error("No books found matching criteria");
     }
 
-    // Get a random book from the results
-    const book = books[Math.floor(Math.random() * books.length)];
-    if (!book) {
-      debugLog("No suitable book found in dataset");
-      return getStaticFallbackPassage(category);
-    }
+    // Select a random book from the results
+    const selectedBook = books[Math.floor(Math.random() * books.length)];
 
-    debugLog("Selected book from dataset", {
-      id: book.id,
-      title: book.title,
-      author: book.author
+    debugLog("Selected book from search results", {
+      id: selectedBook.id,
+      title: selectedBook.title,
+      author: selectedBook.author
     });
 
     // Get text content
-    const bookText = getBookText(book);
+    const bookText = getBookText(selectedBook);
     if (!bookText || bookText.length < 1000) {
-      debugLog("Book text too short or empty", { id: book.id });
-      return getStaticFallbackPassage(category);
+      debugLog("Book text too short or empty", { id: selectedBook.id });
+      throw new Error(`Book text too short or empty for book ID: ${selectedBook.id}`);
     }
 
-    // Extract paragraphs from the middle of the book
+    // Extract paragraphs using the function from gutenbergService
     const paragraphs = extractParagraphsFromMiddle(bookText);
     if (!paragraphs || paragraphs.length === 0) {
-      debugLog("Failed to extract paragraphs from book text", { id: book.id });
-      return getStaticFallbackPassage(category);
+      debugLog("Failed to extract paragraphs from book text", { id: selectedBook.id });
+      throw new Error(`Failed to extract paragraphs from book ID: ${selectedBook.id}`);
     }
 
     debugLog("Successfully extracted passage from dataset", {
-      id: book.id,
+      id: selectedBook.id,
       paragraphCount: paragraphs.length
     });
 
@@ -312,15 +134,15 @@ export async function fetchGutenbergPassage(
     return {
       paragraphs,
       metadata: {
-        title: book.title,
-        author: book.author,
-        id: typeof book.id === 'string' ? parseInt(book.id.replace(/\D/g, '')) || 0 : book.id,
-        canonicalUrl: `https://www.gutenberg.org/ebooks/${book.id}`
+        title: selectedBook.title,
+        author: selectedBook.author,
+        id: typeof selectedBook.id === 'string' ? parseInt(selectedBook.id.replace(/\D/g, '')) || 0 : selectedBook.id,
+        canonicalUrl: `https://www.gutenberg.org/ebooks/${selectedBook.id}`
       }
     };
   } catch (error) {
     console.error("Error fetching passage:", error);
-    return getStaticFallbackPassage(category);
+    throw error; // Let the calling code handle the error (e.g., fall back to static)
   }
 }
 
@@ -405,7 +227,6 @@ export function cacheDOMElements() {
 // Make functions globally available for legacy code and avoiding circular imports
 if (typeof window !== 'undefined') {
     (window as any).startRound = gameLogicStartRound;
-    // findRelatedBooks is removed
     console.log("Added global functions to window object");
 }
 
@@ -424,9 +245,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // they could be handled here. For now, we assume Preact handles all relevant UI.
 });
 
-// Removed cacheDOMElements and attachEventListeners from main.ts
-// as these are now more tightly coupled with Preact component lifecycle in app.tsx
-// and gameLogic.ts for game-specific controls.
+// Note: DOM element caching and event listeners have been migrated to Preact component
+// lifecycle in app.tsx and gameLogic.ts for better component-based architecture.
 
 // Make functions globally available for legacy/debug purposes if absolutely necessary,
 // but prefer component-based interactions.

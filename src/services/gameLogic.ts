@@ -2,6 +2,19 @@
 
 import { debugLog } from '@/utils/debugLog';
 import { TOOL_MAPPING } from '@/services/llmService';
+import {
+  ApiError,
+  DataError,
+  UIError,
+  handleApiError,
+  handleDataError,
+  handleUIError,
+  formatErrorForUser,
+  logError
+} from '@/utils/errorHandling';
+import { validateCachedPassage, validateAndParseCachedPassage } from '@/utils/cacheValidation';
+import { fetchGutenbergPassage } from '@/main';
+import { PassageData } from '@/services/gutenbergService';
 
 // --- Type Definitions (specific to game logic) ---
 // If ScoredWord is only used here, keep it here. Otherwise, consider a shared types file.
@@ -185,7 +198,8 @@ export function extractKeyTerms(words: string[], count = 3): string[] {
 
 // --- Game State Variables ---
 // These will be managed within this module.
-export let paragraphsWords: string[][] = []; // Array of paragraphs, each containing an array of words
+export let paragraphsWords: string[][] = []; // Array of paragraphs, each containing an array of words (with blanks)
+export let originalWords: string[][] = []; // Array of paragraphs, each containing an array of original words
 export let redactedIndices: number[][] = []; // Corresponding indices for redactions in each paragraph
 export let round = 1;
 export let blanksCount = 1; // Start with 1 blank for round 1
@@ -393,14 +407,15 @@ export function renderRound() {
           domElements.hintBtn.onclick = () => {
             if (!domElements || !domElements.hintBtn) return; // Recheck in case element was removed
             if (hintsRemaining > 0 && !hintedBlanks.has(blankKey)) {
-              const originalWord = paragraphsWords[paragraphIdx][wordIdx];
+              // Use originalWords for the hint
+              const originalWord = originalWords[paragraphIdx][wordIdx];
 
               if (originalWord) {
                 // Include punctuation in hint length
                 const cleanOriginalWord = originalWord.replace(/[.,!?;:]+$/, '');
                 const firstLetter = cleanOriginalWord && cleanOriginalWord.length > 0 ? cleanOriginalWord[0] : '?';
                 const hintText = `Starts with "${firstLetter}", length ${cleanOriginalWord.length}.`;
-                showHintDialog(blankKey, originalWord, hintText, input, paragraphElement);
+                showHintDialog(blankKey, originalWord, hintText);
                 // After showing the hint, add the [i] icon if not already present
                 if (!paragraphElement.querySelector(`.hint-info-icon[data-blank-key="${blankKey}"]`)) {
                   const infoIcon = document.createElement('span');
@@ -409,7 +424,8 @@ export function renderRound() {
                   infoIcon.setAttribute('data-blank-key', blankKey);
                   infoIcon.innerHTML = '<span style="font-size:1em;vertical-align:middle;">&#9432;</span>';
                   infoIcon.onclick = () => {
-                    showHintDialog(blankKey, originalWord);
+                    // Use originalWords for the hint
+                    showHintDialog(blankKey, originalWords[paragraphIdx][wordIdx]);
                   };
                   input.insertAdjacentElement('afterend', infoIcon);
                 }
@@ -485,9 +501,6 @@ export function resetGame() {
   }
   debugLog("Game reset in gameLogic.ts");
 }
-
-// Import LLM related services
-import { TOOL_MAPPING } from '@/services/llmService';
 
 /**
  * Continues to the next round based on the user's performance.
@@ -566,7 +579,10 @@ export function continueToNextRound(passed: boolean) {
 
 export async function startRound(forceNewPassage: boolean = false): Promise<object | null> { // Added return type
   if (!domElements) {
-    console.error("DOM elements not initialized for gameLogic.startRound");
+    handleUIError(
+      new UIError("DOM elements not initialized"),
+      "gameLogic.startRound"
+    );
     return null;
   }
   const { gameArea, submitBtn, hintBtn, resultArea, bibliographicArea } = domElements;
@@ -607,130 +623,28 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
   }
 
 
+  // Use our simplified cache validation utility to handle both parsing and validation
   const cachedPassage = forceNewPassage ? null : paragraphCache.get(cacheKey);
-  // Check if cached passage is recent enough or if we are forcing a new passage
-  const isCacheStale = cachedPassage ? (Date.now() - JSON.parse(cachedPassage).timestamp > 60 * 60 * 1000) : true; // Consider stale after 1 hour
-
+  
   // Log API information for transparency
-  debugLog("API Connection", { 
-    usingCache: (!forceNewPassage && cachedPassage && !isCacheStale),
+  debugLog("API Connection", {
     forceNewPassage,
     cacheExists: !!cachedPassage,
-    cacheStale: isCacheStale,
     endpoint: "https://datasets-server.huggingface.co/rows?dataset=manu%2Fproject_gutenberg" // Using HuggingFace dataset API
   });
 
-  if (!forceNewPassage && cachedPassage && !isCacheStale) {
+  // Use validateAndParseCachedPassage to handle both parsing and validation in one step
+  const passageData = cachedPassage ? validateAndParseCachedPassage(
+    cachedPassage,
+    cacheKey,
+    {
+      forceNewFetch: forceNewPassage,
+      expirationTime: 60 * 60 * 1000 // 1 hour
+    }
+  ) : null;
+  
+  if (passageData) {
     debugLog("Serving passage from cache", { cacheKey });
-    const parsedCache = JSON.parse(cachedPassage);
-    if (parsedCache && parsedCache.paragraphs && Array.isArray(parsedCache.paragraphs)) {
-      const passageData = {
-        paragraphs: parsedCache.paragraphs,
-        metadata: parsedCache.metadata || null
-      };
-
-      // --- INTEGRITY CHECK: Validate cached metadata and passage text against HuggingFace Project Gutenberg dataset ---
-      // If the metadata.id is present, fetch metadata and compare title/author.
-      // Also, fetch the first 200 chars of the actual book and compare to the cached passage.
-      let integrityCheckPassed = true;
-      if (passageData.metadata && passageData.metadata.id && passageData.metadata.id > 0) {
-        const checkMetadataAndText = async () => {
-          try {
-            const gutendexResp = await fetch(`https://gutendex.com/books?ids=${passageData.metadata.id}`);
-            if (gutendexResp.ok) {
-              const gutendexData = await gutendexResp.json();
-              if (gutendexData.results && gutendexData.results.length > 0) {
-                const gutendexBook = gutendexData.results[0];
-                // Compare title and author (case-insensitive, trimmed)
-                const cachedTitle = (passageData.metadata.title || '').trim().toLowerCase();
-                const cachedAuthor = (passageData.metadata.author || '').trim().toLowerCase();
-                const gutendexTitle = (gutendexBook.title || '').trim().toLowerCase();
-                const gutendexAuthor = (gutendexBook.authors && gutendexBook.authors.length > 0)
-                  ? gutendexBook.authors.map((a: any) => a.name).join(', ').trim().toLowerCase()
-                  : '';
-                if (cachedTitle !== gutendexTitle || cachedAuthor !== gutendexAuthor) {
-                  console.warn(
-                    `[Cache Integrity] Metadata mismatch for ID ${passageData.metadata.id}:`,
-                    `Cached: "${cachedTitle}" by "${cachedAuthor}"`,
-                    `Gutendex: "${gutendexTitle}" by "${gutendexAuthor}"`
-                  );
-                  // Invalidate cache for this key
-                  paragraphCache.set(cacheKey, ''); // Remove the corrupted cache entry
-                  integrityCheckPassed = false;
-                  return;
-                }
-                // --- NEW: Compare passage text to actual book text ---
-                // Try to get a plain text format
-                let textUrl = null;
-                if (gutendexBook.formats) {
-                  textUrl =
-                    gutendexBook.formats["text/plain; charset=utf-8"] ||
-                    gutendexBook.formats["text/plain"] ||
-                    gutendexBook.formats["text/html; charset=utf-8"] ||
-                    gutendexBook.formats["text/html"];
-                  // Fallback: try any plain text
-                  if (!textUrl) {
-                    for (const [key, url] of Object.entries(gutendexBook.formats)) {
-                      if (key.startsWith("text/plain")) {
-                        textUrl = url;
-                        break;
-                      }
-                    }
-                  }
-                }
-                if (textUrl) {
-                  // Fetch the first 2000 chars (to allow for header skipping)
-                  const resp = await fetch(textUrl);
-                  if (resp.ok) {
-                    let bookText = await resp.text();
-                    // Remove Gutenberg header/footer
-                    const headerMatch = bookText.match(/\*\*\* START OF (THE|THIS) PROJECT GUTENBERG EBOOK.*\*\*\*/i);
-                    if (headerMatch && headerMatch.index !== undefined) {
-                      bookText = bookText.substring(headerMatch.index + headerMatch[0].length);
-                    }
-                    // Remove leading whitespace/newlines
-                    bookText = bookText.replace(/^\s+/, "");
-                    // Get the first 200-400 chars of the actual book text (skip more if needed)
-                    const actualSnippet = bookText.substring(0, 400).replace(/\s+/g, " ").trim();
-                    // Get the first 400 chars of the cached passage
-                    const passageSnippet = passageData.paragraphs && passageData.paragraphs.length > 0
-                      ? passageData.paragraphs.join(" ").substring(0, 400).replace(/\s+/g, " ").trim()
-                      : "";
-                    // Compare with a loose threshold (allowing for minor differences)
-                    function looseMatch(a: string, b: string) {
-                      // Remove punctuation, lowercase, compare first 100 chars
-                      const clean = (s: string) => s.replace(/[^\w\s]/g, "").toLowerCase().substring(0, 100);
-                      return clean(a) === clean(b);
-                    }
-                    if (!looseMatch(actualSnippet, passageSnippet)) {
-                      console.warn(
-                        `[Cache Integrity] Passage text mismatch for ID ${passageData.metadata.id}:`,
-                        `First 100 chars of actual: "${actualSnippet.substring(0, 100)}"`,
-                        `First 100 chars of cached: "${passageSnippet.substring(0, 100)}"`
-                      );
-                      paragraphCache.set(cacheKey, ''); // Remove the corrupted cache entry
-                      integrityCheckPassed = false;
-                      return;
-                    }
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('[Cache Integrity] Error checking Gutendex metadata/text:', e);
-          }
-        };
-        // Await the integrity check before proceeding
-        // eslint-disable-next-line no-await-in-loop
-        await checkMetadataAndText();
-      }
-
-      if (!integrityCheckPassed) {
-        debugLog("Cache integrity check failed, fetching new passage.", { cacheKey });
-        // Recursively call startRound with forceNewPassage=true to fetch a new passage
-        await startRound(true);
-        return null;
-      }
 
       if (bibliographicArea && passageData.metadata) {
         let authorDisplayHTML = passageData.metadata.author; // Default to plain author name
@@ -751,7 +665,11 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
             factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
           }
         } catch (error) {
-          console.error("Error fetching book/author info:", error);
+          handleApiError(
+            error,
+            "TOOL_MAPPING.getBookAuthorInfo",
+            undefined // No fallback, just log and continue
+          );
           // authorDisplayHTML will remain plain text, factoidDisplayHTML will be empty
         }
 
@@ -808,7 +726,6 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
       renderRound();
       return passageData;
     }
-  }
 
   // If we reach this point, call fetchGutenbergPassage directly and do not rely only on cache
   try {
@@ -861,7 +778,11 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
             factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
           }
         } catch (error) {
-          console.error("Error fetching book/author info for newly fetched passage:", error);
+          handleApiError(
+            error,
+            "TOOL_MAPPING.getBookAuthorInfo",
+            undefined // No fallback, just log and continue
+          );
           // authorDisplayHTML will remain plain text, factoidDisplayHTML will be empty
         }
 
@@ -883,28 +804,36 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
       }
 
       // Set up the game state with the successfully fetched paragraphs and answers
-      paragraphsWords = [];
-      redactedIndices = [];
+      paragraphsWords = []; // This will store paragraphs with blanks (underscores)
+      originalWords = []; // This will store the original words
+      redactedIndices = []; // This will store the indices of the blanks
 
-      // Use the returned paragraphs and answers
+      // Populate paragraphsWords and initialize originalWords structure
       for (const paragraph of clozeResult.paragraphs) {
         if (!paragraph || paragraph.trim() === '') continue;
         const words = paragraph.split(' ');
         paragraphsWords.push(words);
+        originalWords.push(new Array(words.length).fill('')); // Initialize with empty strings
+        redactedIndices.push([]); // Initialize redactedIndices structure
       }
 
-      // Build redactedIndices from answers
-      redactedIndices = paragraphsWords.map(() => []);
+      // Populate originalWords and redactedIndices from answers
       for (const ans of clozeResult.answers) {
         if (
           typeof ans.paragraphIndex === 'number' &&
           typeof ans.wordIndex === 'number' &&
-          paragraphsWords[ans.paragraphIndex] &&
-          paragraphsWords[ans.paragraphIndex][ans.wordIndex]
+          originalWords[ans.paragraphIndex] && // Check if paragraph exists
+          ans.wordIndex < originalWords[ans.paragraphIndex].length // Check if word index is valid
         ) {
-          redactedIndices[ans.paragraphIndex].push(ans.wordIndex);
+          originalWords[ans.paragraphIndex][ans.wordIndex] = ans.answer; // Store original word
+          redactedIndices[ans.paragraphIndex].push(ans.wordIndex); // Store index of blank
+        } else {
+          console.warn("Invalid answer structure or indices:", ans);
         }
       }
+
+      // Sort redacted indices for each paragraph
+      redactedIndices.forEach(indices => indices.sort((a, b) => a - b));
 
       renderRound();
       return clozeResult;
@@ -912,14 +841,125 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
       console.warn("Cloze tool result missing or invalid: ", clozeResult);
     }
   } catch (error) {
-    console.error("Error when directly fetching passage via cloze tool:", error);
+    // Log the error but don't re-throw it so we can try the fallback
+    logError(
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        context: "TOOL_MAPPING.get_cloze_passage",
+        willTryFallback: true
+      }
+    );
+
+    // Try using the main fetchGutenbergPassage function as backup
+    try {
+      debugLog("get_cloze_passage failed, trying fetchGutenbergPassage...");
+      const passageData = await fetchGutenbergPassage(
+        category || null,
+        author || null,
+        century || null,
+        []
+      );
+
+      if (passageData && passageData.paragraphs && passageData.paragraphs.length > 0) {
+        debugLog("Successfully fetched passage using fetchGutenbergPassage");
+
+        // Store in cache for future use
+        paragraphCache.set(cacheKey, JSON.stringify({
+          paragraphs: passageData.paragraphs,
+          metadata: passageData.metadata,
+          timestamp: Date.now()
+        }));
+
+        // Display the metadata
+        if (bibliographicArea && passageData.metadata) {
+          let authorDisplayHTML = passageData.metadata.author;
+          let factoidDisplayHTML = '';
+
+          try {
+            const factoidResult = await TOOL_MAPPING.getBookAuthorInfo({
+              title: passageData.metadata.title,
+              author: passageData.metadata.author
+            }) as { factoid: string };
+
+            if (factoidResult && factoidResult.factoid) {
+              passageData.metadata.factoid = factoidResult.factoid;
+              factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
+            }
+          } catch (error) {
+            // Continue without factoid if this fails
+          }
+
+          const biblioHTML = `
+            <h2 class="text-xl font-semibold mb-2 typewriter-text">${passageData.metadata.title}</h2>
+            <p class="typewriter-text">By ${authorDisplayHTML}</p>
+            ${factoidDisplayHTML}
+          `;
+          bibliographicArea.innerHTML = biblioHTML;
+
+          previousBooks.push({
+            title: passageData.metadata.title,
+            author: passageData.metadata.author,
+            id: passageData.metadata.id
+          });
+          localStorage.setItem('previousBooks', JSON.stringify(previousBooks));
+        }
+
+        // Set up the game state with the successfully fetched paragraphs
+        paragraphsWords = []; // This will store original words
+        originalWords = []; // This will also store original words (redundant, will fix later)
+        redactedIndices = [];
+
+        // Process the array of paragraphs from the passage
+        for (const paragraph of passageData.paragraphs) {
+          if (!paragraph || paragraph.trim() === '') continue;
+          const words = paragraph.split(' ');
+          paragraphsWords.push(words);
+          originalWords.push([...words]); // Copy original words
+        }
+
+        // Distribute blanks among paragraphs and populate redactedIndices
+        const blankDistribution = distributeRedactions(paragraphsWords, blanksCount);
+
+        // Create redaction indices for each paragraph
+        for (let i = 0; i < paragraphsWords.length; i++) {
+          const blanksForThisParagraph = blankDistribution[i] || 0;
+          redactedIndices[i] = chooseRedactions(paragraphsWords[i], blanksForThisParagraph);
+        }
+
+        // Redact words in paragraphsWords (which currently holds original words)
+        for (let pIdx = 0; pIdx < paragraphsWords.length; pIdx++) {
+            const words = paragraphsWords[pIdx];
+            const indicesToRedact = new Set(redactedIndices[pIdx]);
+            paragraphsWords[pIdx] = words.map((word, wIdx) => {
+                if (indicesToRedact.has(wIdx)) {
+                    // Replace with underscores matching word length
+                    return '_'.repeat(word.replace(/[.,!?;:]+$/, '').length);
+                }
+                return word;
+            });
+        }
+
+
+        renderRound();
+        return passageData;
+      }
+    } catch (fetchError) {
+      handleApiError(
+        fetchError,
+        "fetchGutenbergPassage",
+        undefined
+      );
+    }
   }
 
   // If we still don't have a passage, show a fallback
   if (gameArea) {
+    // Use our formatErrorForUser function to get a user-friendly error message
+    const errorMessage = formatErrorForUser(new ApiError("Failed to fetch a passage", 0, "get_cloze_passage"));
+    
     gameArea.innerHTML = `
       <div class="text-center p-4">
-        <p class="text-lg text-red-500">Failed to fetch a passage. Please try again later.</p>
+        <p class="text-lg text-red-500">${errorMessage}</p>
         <button id="retry-fetch-btn" class="mt-4 px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon">
           Retry
         </button>
@@ -973,14 +1013,15 @@ export function handleSubmission() {
   inputs.forEach(input => {
     const paragraphIdx = parseInt(input.dataset.paragraph || '0', 10);
     const wordIdx = parseInt(input.dataset.index || '0', 10);
-    
+
     // Get the original word and strip trailing punctuation for comparison
-    let originalWordWithPunctuation = paragraphsWords[paragraphIdx][wordIdx];
+    // Use originalWords for the correct answer check
+    let originalWordWithPunctuation = originalWords[paragraphIdx][wordIdx];
     const originalWord = originalWordWithPunctuation.replace(/[.,!?;:]+$/, ''); // Remove trailing punctuation
-    
+
     // Compare user input to original word (case-insensitive)
     const userInput = input.value.trim();
-    
+
     // Simple comparison for now (could be enhanced with more sophisticated matching)
     if (userInput.toLowerCase() === originalWord.toLowerCase()) {
       correctCount++;
@@ -989,13 +1030,13 @@ export function handleSubmission() {
       incorrectInputs.push(input);
     }
   });
-  
+
   // Calculate score
   const scorePercentage = (correctCount / totalBlanks) * 100;
-  
+
   // Update UI
   resultArea.innerHTML = `<p class="mb-2">Score: ${correctCount}/${totalBlanks} (${scorePercentage.toFixed(0)}%)</p>`;
-  
+
   // Highlight correct/incorrect answers with improved styling
   correctInputs.forEach(input => {
     // Focus on text color instead of background for better visibility
@@ -1003,25 +1044,26 @@ export function handleSubmission() {
     input.style.fontWeight = 'bold'; // Make it stand out
     input.disabled = true;
   });
-  
+
   incorrectInputs.forEach(input => {
     // Focus on text color instead of background for better visibility
     input.classList.add('text-red-700'); // Soft dark red for better contrast
     input.style.fontWeight = 'bold'; // Make it stand out
     input.disabled = true;
-    
+
     // Add the correct answer after this input (show the version without punctuation)
     const paragraphIdx = parseInt(input.dataset.paragraph || '0', 10);
     const wordIdx = parseInt(input.dataset.index || '0', 10);
-    const originalWordWithPunctuation = paragraphsWords[paragraphIdx][wordIdx];
+    // Use originalWords for displaying the correct answer
+    const originalWordWithPunctuation = originalWords[paragraphIdx][wordIdx];
     const originalWord = originalWordWithPunctuation.replace(/[.,!?;:]+$/, ''); // Get the clean word for display
-    
+
     const correction = document.createElement('span');
     correction.className = 'text-xs block text-red-700 mt-1 font-semibold'; // Enhanced visibility
     correction.textContent = `Correct: ${originalWord}`;
     input.parentNode?.insertBefore(correction, input.nextSibling);
   });
-  
+
   // Determine if passed (>= 70%)
   const passed = scorePercentage >= 70;
   

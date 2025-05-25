@@ -2,6 +2,13 @@
 
 import { getEnvironmentConfig } from '@/utils/environmentConfig';
 import { SearchGutenbergBooksArgs } from '@/services/gutenbergTypes';
+import {
+  ApiError,
+  DataError,
+  handleApiError,
+  handleDataError,
+  logError
+} from '@/utils/errorHandling';
 
 // Internal logging function to avoid circular dependencies
 function logLLMService(message: string, data?: any): void {
@@ -135,7 +142,8 @@ export const tools: ToolDefinition[] = [
 ];
 
 
-import { fetchGutenbergPassage, PassageData } from '@/main';
+import { fetchGutenbergPassage } from '@/main';
+import { PassageData } from '@/services/gutenbergService';
 import { chooseRedactions } from '@/services/gameLogic';
 
 export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
@@ -189,9 +197,8 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
       });
 
       if (!response.ok) {
-        // Fall back to static passage if API fails
-        logLLMService("API request failed, using fallback", { status: response.status });
-        return await this.getFallbackClozePassage(blanks_count);
+        // Don't fall back to fake content - throw error to force real Gutenberg content
+        throw new Error(`Hugging Face API failed with status ${response.status}`);
       }
 
       const responseData = await response.json();
@@ -199,16 +206,14 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
 
       // Check if we have valid rows
       if (!responseData.rows || !Array.isArray(responseData.rows) || responseData.rows.length === 0) {
-        logLLMService("No rows in response, using fallback");
-        return await this.getFallbackClozePassage(blanks_count);
+        throw new Error("No valid rows returned from Hugging Face API");
       }
 
       // Get the book data from the first row
       const bookRow = responseData.rows[0].row;
       
       if (!bookRow || !bookRow.id || !bookRow.text) {
-        logLLMService("Invalid book data in response, using fallback");
-        return await this.getFallbackClozePassage(blanks_count);
+        throw new Error("Invalid book data returned from Hugging Face API");
       }
 
       // Extract book ID and text
@@ -248,18 +253,16 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
 
       // Split into paragraphs
       let paragraphs = content.split(/\n\n+/)
-        .map(p => p.trim())
-        .filter(p => p.length > 100) // Only keep paragraphs with substantial content
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length > 100) // Only keep paragraphs with substantial content
         .slice(1, 4); // Take paragraphs 2-4 (skip the first one, which might be leftover header content)
 
       if (paragraphs.length === 0) {
-        // If we couldn't extract good paragraphs, use fallback
-        logLLMService("No suitable paragraphs found, using fallback");
-        return await this.getFallbackClozePassage(blanks_count);
+        throw new Error("No suitable paragraphs found in the book text");
       }
 
       // 2. Split paragraphs into words
-      const paragraphsWords: string[][] = paragraphs.map(p => p.split(' '));
+      const paragraphsWords: string[][] = paragraphs.map((p: string) => p.split(' '));
       
       // 3. Distribute blanks
       let blanksRemaining = blanks_count;
@@ -314,7 +317,7 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
       };
     } catch (error) {
       logLLMService("Error in get_cloze_passage:", error);
-      return await this.getFallbackClozePassage(blanks_count);
+      throw error; // Don't fall back to fake content, let the calling code handle it
     }
   },
 
@@ -497,22 +500,40 @@ export async function callLLM(messages: OpenRouterMessage[], currentTools?: Tool
       } catch (e) {
         errorData = await response.text();
       }
-      const errorMessage = (typeof errorData === 'object' && errorData?.error?.message) ? errorData.error.message : (typeof errorData === 'string' ? errorData : 'Unknown API error');
-      console.error("LLM Service: OpenRouter API Error:", response.status, errorMessage);
-      throw new Error(`OpenRouter API Error: ${response.status} - ${errorMessage}`);
+      
+      const errorMessage = (typeof errorData === 'object' && errorData?.error?.message)
+        ? errorData.error.message
+        : (typeof errorData === 'string' ? errorData : 'Unknown API error');
+      
+      throw new ApiError(
+        errorMessage,
+        response.status,
+        'https://openrouter.ai/api/v1/chat/completions'
+      );
     }
 
     const data = await response.json();
     logLLMService("OpenRouter API Response", data);
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error("LLM Service: Invalid response structure from OpenRouter:", data);
-      throw new Error("Invalid response structure from OpenRouter.");
+      throw new DataError(
+        "Invalid response structure from OpenRouter",
+        data
+      );
     }
     return data.choices[0].message as OpenRouterMessage;
   } catch (error) {
-    console.error("LLM Service: Error calling OpenRouter API:", error);
-    throw error; // Re-throw to be handled by the caller
+    // If it's already one of our custom errors, just re-throw it
+    if (error instanceof ApiError || error instanceof DataError) {
+      logError(error, { model: body.model });
+      throw error;
+    }
+    
+    // Otherwise, convert to ApiError and throw
+    throw handleApiError(
+      error,
+      'https://openrouter.ai/api/v1/chat/completions'
+    );
   }
 }
 
