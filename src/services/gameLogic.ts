@@ -1,6 +1,7 @@
 // src/services/gameLogic.ts
 
 import { debugLog } from '@/utils/debugLog';
+import { TOOL_MAPPING } from '@/services/llmService';
 
 // --- Type Definitions (specific to game logic) ---
 // If ScoredWord is only used here, keep it here. Otherwise, consider a shared types file.
@@ -59,6 +60,7 @@ paragraphCache.init();
 
 /**
  * Chooses words to redact from a list of words based on a scoring mechanism.
+ * Enhanced with improved selection algorithm for better word choice.
  * @param words The array of words in the paragraph.
  * @param count The desired number of redactions.
  * @returns An array of indices to be redacted.
@@ -72,10 +74,17 @@ export function chooseRedactions(words: string[], count: number): number[] {
     'to', 'from', 'in', 'on', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have',
     'has', 'had', 'do', 'does', 'did', 'will', 'would', 'shall', 'should', 'can', 'could',
     'may', 'might', 'must', 'that', 'which', 'who', 'whom', 'whose', 'this', 'these',
-    'those', 'am', 'i', 'we', 'you', 'he', 'she', 'they', 'it' // Corrected: removed duplicate 'we'
+    'those', 'am', 'i', 'we', 'you', 'he', 'she', 'they', 'it',
+    // Additional function words for better coverage
+    'as', 'so', 'such', 'than', 'then', 'their', 'them', 'there', 'these', 'they', 'this', 'those'
   ]);
 
   const scoredWords: ScoredWord[] = words.map((word, index) => {
+    // Safety check for undefined or empty words
+    if (!word || word.length === 0) {
+      return { index, score: -100 }; // Very low score to filter out
+    }
+    
     // Separate word from trailing punctuation
     const punctuationMatch = word.match(/([.,!?;:]+)$/);
     const trailingPunctuation = punctuationMatch ? punctuationMatch[1] : '';
@@ -87,26 +96,18 @@ export function chooseRedactions(words: string[], count: number): number[] {
       score -= 10;
     }
     
-    // NEW: Detect and deprioritize proper nouns
-    // Check if word is capitalized (but not at sentence start)
+    // Detect and deprioritize proper nouns
     const isCapitalized = word[0] === word[0].toUpperCase() && word[0].match(/[A-Z]/);
     const isProbablySentenceStart = index === 0 || 
-        (index > 0 && words[index-1].match(/[.!?]\s*$/));
+        (index > 0 && words[index-1] && words[index-1].match(/[.!?]\s*$/));
     
-    // If capitalized and not at sentence start, likely a proper noun
     if (isCapitalized && !isProbablySentenceStart) {
-      score -= 15; // Significant penalty to avoid proper nouns
+      score -= 15; // Penalty to avoid proper nouns
     }
     
-    // For extra safety, check for known name patterns
     if (/^(Mr|Mrs|Ms|Dr|Prof|Sir|Lady|Lord|Saint|St)\.\s*[A-Z]/.test(word)) {
-      score -= 20; // Even higher penalty for definite names
+      score -= 20; // Higher penalty for definite names
     }
-    
-    // Old logic for capitalized words (now modified above)
-    // if (index > 0 && word[0] === word[0].toUpperCase() && word[0].match(/[A-Z]/)) {
-    //   score += 5;
-    // }
     
     score += Math.random() * 2;
     return { index, score };
@@ -116,24 +117,46 @@ export function chooseRedactions(words: string[], count: number): number[] {
     // Be much more permissive to ensure we have words to redact
     const word = words[scoredWord.index];
     
+    // Safety check for undefined word
+    if (!word || word.length === 0) {
+      return false;
+    }
+    
     // Remove trailing punctuation for evaluation
     const cleanWord = word.replace(/[.,!?;:]+$/, '');
     
-    // Only filter out words with em-dashes, en-dashes, or other special characters
-    // that would make them difficult to type
-    return !/[—–]/.test(cleanWord) && cleanWord.length >= 3;
+    // Filter out words with non-Latin scripts (Bengali, Arabic, etc.)
+    const hasNonLatinChars = /[^\u0000-\u007F\u0080-\u00FF\u0100-\u017F\u0180-\u024F]/.test(cleanWord);
+    
+    // Only filter out words with em-dashes, en-dashes, other special characters,
+    // non-Latin scripts, or that are too short
+    return !hasNonLatinChars && !/[—–]/.test(cleanWord) && cleanWord.length >= 3;
   });
 
   scoredWords.sort((a, b) => b.score - a.score);
 
   const actualCount = Math.min(count, scoredWords.length); // Use filtered scoredWords length
-  const candidatePoolSize = Math.min(actualCount * 2, scoredWords.length);
+  const candidatePoolSize = Math.min(actualCount * 3, scoredWords.length); // Increased pool size for better diversity
   const topCandidates = scoredWords.slice(0, candidatePoolSize);
 
+  // Ensure we don't select adjacent words to maintain readability
   while (indices.length < actualCount && topCandidates.length > 0) {
     const randomIndex = Math.floor(Math.random() * topCandidates.length);
     const selectedWord = topCandidates.splice(randomIndex, 1)[0];
-    indices.push(selectedWord.index);
+    const selectedIndex = selectedWord.index;
+    
+    // Check if this index is adjacent to any already selected indices
+    const isAdjacent = indices.some(existingIndex => 
+      Math.abs(existingIndex - selectedIndex) <= 1
+    );
+    
+    if (!isAdjacent || indices.length === 0) {
+      indices.push(selectedIndex);
+    }
+    // If we've exhausted candidates and still need more words, allow adjacent selection
+    else if (topCandidates.length === 0 && indices.length < actualCount) {
+      indices.push(selectedIndex);
+    }
   }
 
   return indices.sort((a, b) => a - b);
@@ -189,9 +212,11 @@ let domElements: GameDOMElements | null = null;
 export let isDOMElementsInitialized: boolean = false;
 
 // Show the hint dialog for a blank, using stored or generated hint text
-export function showHintDialog(blankKey: string, originalWord: string, hintText?: string, inputElem?: HTMLInputElement, parentElem?: HTMLElement) {
+export function showHintDialog(blankKey: string, originalWord: string, hintText?: string) {
   // Use stored hint if available, otherwise use provided or generate
-  let text = hintContents[blankKey] || hintText || `Starts with "${originalWord[0]}", length ${originalWord.length}.`;
+  const cleanOriginalWord = originalWord.replace(/[.,!?;:]+$/, '');
+  const firstLetter = cleanOriginalWord && cleanOriginalWord.length > 0 ? cleanOriginalWord[0] : '?';
+  let text = hintContents[blankKey] || hintText || `Starts with "${firstLetter}", length ${cleanOriginalWord.length}.`;
   hintContents[blankKey] = text;
 
   const hintDiv = document.createElement('div');
@@ -217,6 +242,18 @@ export function initializeGameDOMElements(elements: GameDOMElements) {
   // Check if all required elements are present before marking as initialized
   if (domElements.gameArea && domElements.roundInfo && domElements.submitBtn && domElements.hintBtn && domElements.resultArea) {
     isDOMElementsInitialized = true;
+    
+    // Attach event listener to submit button
+    domElements.submitBtn.addEventListener('click', handleSubmission);
+    
+    // Attach event listener to NEW TEXT button (if it exists)
+    const newTextBtn = document.getElementById('new-text-btn') as HTMLButtonElement;
+    if (newTextBtn) {
+      newTextBtn.addEventListener('click', () => {
+        startRound(true); // Force new passage
+      });
+    }
+    
     debugLog("Game DOM elements initialized successfully.");
   } else {
     isDOMElementsInitialized = false;
@@ -302,8 +339,9 @@ export function renderRound() {
         input.dataset.paragraph = String(pIdx);
         
         const originalWordWithPunctuation = paragraphsWords[pIdx][idx];
-        // Generate placeholder underscores matching the word length
-        input.placeholder = '_'.repeat(originalWordWithPunctuation.length);
+        // Generate placeholder underscores matching the word length (excluding punctuation)
+        const cleanWord = originalWordWithPunctuation.replace(/[.,!?;:]+$/, '');
+        input.placeholder = '_'.repeat(cleanWord.length);
         
         // Set width based on character length using 'ch' unit, ensure min width
         // Add a small buffer to prevent truncation, e.g., +2ch
@@ -359,7 +397,9 @@ export function renderRound() {
 
               if (originalWord) {
                 // Include punctuation in hint length
-                const hintText = `Starts with "${originalWord[0]}", length ${originalWord.length}.`;
+                const cleanOriginalWord = originalWord.replace(/[.,!?;:]+$/, '');
+                const firstLetter = cleanOriginalWord && cleanOriginalWord.length > 0 ? cleanOriginalWord[0] : '?';
+                const hintText = `Starts with "${firstLetter}", length ${cleanOriginalWord.length}.`;
                 showHintDialog(blankKey, originalWord, hintText, input, paragraphElement);
                 // After showing the hint, add the [i] icon if not already present
                 if (!paragraphElement.querySelector(`.hint-info-icon[data-blank-key="${blankKey}"]`)) {
@@ -446,8 +486,8 @@ export function resetGame() {
   debugLog("Game reset in gameLogic.ts");
 }
 
-import { fetchGutenbergPassage } from '@/main';
-import { runAgenticLoop, tools as llmTools, getToolResponse, OpenRouterMessage, callLLM, TOOL_MAPPING } from '@/services/llmService';
+// Import LLM related services
+import { TOOL_MAPPING } from '@/services/llmService';
 
 /**
  * Continues to the next round based on the user's performance.
@@ -522,24 +562,14 @@ export function continueToNextRound(passed: boolean) {
 /**
  * Starts a new round of the game by fetching a new passage and rendering it.
  */
-// Updated to include canonicalUrl in the metadata
-interface PassageData {
-  paragraphs: string[];
-  metadata: {
-    title: string;
-    author: string;
-    id: number;
-    canonicalUrl?: string; // Add optional canonical URL
-    factoid?: string; // Add optional factoid
-  } | null;
-}
+// PassageData is now imported from main.ts
 
-export async function startRound(forceNewPassage: boolean = false) {
+export async function startRound(forceNewPassage: boolean = false): Promise<object | null> { // Added return type
   if (!domElements) {
     console.error("DOM elements not initialized for gameLogic.startRound");
-    return;
+    return null;
   }
-  const { gameArea, roundInfo, submitBtn, hintBtn, resultArea, bibliographicArea } = domElements;
+  const { gameArea, submitBtn, hintBtn, resultArea, bibliographicArea } = domElements;
 
   hintsRemaining = 3; 
   if (hintBtn) hintBtn.textContent = `Hint (${hintsRemaining})`;
@@ -564,18 +594,20 @@ export async function startRound(forceNewPassage: boolean = false) {
   let baseCacheKey = `passage_${category || 'any'}_${author || 'any'}_${century || 'any'}`;
 
   // Add a random component to the cache key to encourage diversity,
-  // but only if not forcing a new passage (which already ensures uniqueness)
-  // and not using specific criteria (where we want consistent results for the same criteria).
+  // If forcing a new passage, always add random component to ensure cache miss
   let cacheKey = baseCacheKey;
-  if (!forceNewPassage && !category && !author && !century) {
+  if (forceNewPassage) {
+      cacheKey = `${baseCacheKey}_forced_${Math.random().toString(36).substring(7)}`;
+      debugLog("Generated forced cache key for new passage:", { cacheKey, forceNewPassage });
+  } else if (!category && !author && !century) {
       cacheKey = `${baseCacheKey}_random_${Math.random().toString(36).substring(7)}`;
       debugLog("Generated random cache key for diverse selection:", { cacheKey });
   } else {
-      debugLog("Using base cache key or forced new passage:", { cacheKey, forceNewPassage });
+      debugLog("Using base cache key:", { cacheKey, forceNewPassage });
   }
 
 
-  const cachedPassage = paragraphCache.get(cacheKey);
+  const cachedPassage = forceNewPassage ? null : paragraphCache.get(cacheKey);
   // Check if cached passage is recent enough or if we are forcing a new passage
   const isCacheStale = cachedPassage ? (Date.now() - JSON.parse(cachedPassage).timestamp > 60 * 60 * 1000) : true; // Consider stale after 1 hour
 
@@ -704,27 +736,19 @@ export async function startRound(forceNewPassage: boolean = false) {
         let authorDisplayHTML = passageData.metadata.author; // Default to plain author name
         let factoidDisplayHTML = ''; // Default to no factoid
 
-        // This try-catch block for fetching bookInfoResult is largely existing
         try {
-          const bookInfoArgs = {
+          // Call getBookAuthorInfo tool
+          const factoidResult = await TOOL_MAPPING.getBookAuthorInfo({
             title: passageData.metadata.title,
-            author: passageData.metadata.author,
-            gutenbergId: passageData.metadata.id?.toString()
-          };
-          const bookInfoResult = await TOOL_MAPPING.getBookAuthorInfo(bookInfoArgs) as { factoid?: string; validatedUrl?: string };
+            author: passageData.metadata.author
+          }) as { factoid: string };
 
-          if (bookInfoResult) {
-            passageData.metadata.factoid = bookInfoResult.factoid; // Store for consistency
-            passageData.metadata.canonicalUrl = bookInfoResult.validatedUrl; // Store for consistency
+          debugLog("Tool results:", { factoidResult });
 
-            // NEW: If validatedUrl exists, make the author's name the link
-            if (bookInfoResult.validatedUrl) {
-              authorDisplayHTML = `<a href="${bookInfoResult.validatedUrl}" target="_blank" rel="noopener noreferrer" class="text-typewriter-ribbon hover:underline">${passageData.metadata.author}</a>`;
-            }
-            // Factoid display
-            if (bookInfoResult.factoid) {
-              factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${bookInfoResult.factoid}</p>`;
-            }
+          // Handle factoid result
+          if (factoidResult && factoidResult.factoid) {
+            passageData.metadata.factoid = factoidResult.factoid; // Store for consistency
+            factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
           }
         } catch (error) {
           console.error("Error fetching book/author info:", error);
@@ -763,10 +787,6 @@ export async function startRound(forceNewPassage: boolean = false) {
         for (const splitParagraph of splitParagraphs) {
           if (splitParagraph.trim() === '') continue;
           
-          // Check if this is a dialogue line (starts with quotes and is relatively short)
-          const isDialogue = splitParagraph.trim().startsWith('"') && 
-                            splitParagraph.length < 150; // Dialogue is typically short
-          
           // Split into words and add to our array
           const words = splitParagraph.split(' ');
           if (words.length > 0) {
@@ -792,57 +812,53 @@ export async function startRound(forceNewPassage: boolean = false) {
 
   // If we reach this point, call fetchGutenbergPassage directly and do not rely only on cache
   try {
-    const { fetchGutenbergPassage } = await import('@/main');
-    debugLog("No passage in cache, fetching new one directly...");
-    
-    // Fetch a new passage
+    // Use the new OpenRouter tool for passage selection and cloze generation
+    debugLog("No passage in cache, fetching new one directly via get_cloze_passage tool...");
+
     const categoryVal = localStorage.getItem('game_category') || '';
     const authorVal = localStorage.getItem('game_author') || '';
     const centuryVal = localStorage.getItem('game_century') || '';
 
-    const passageData = await fetchGutenbergPassage(
-      categoryVal || null,
-      authorVal || null,
-      centuryVal || null,
-      []  // No excluded IDs for a fresh fetch
-    );
+    // Call the tool directly
+    const clozeResult = await TOOL_MAPPING.get_cloze_passage({
+      category: categoryVal || undefined,
+      author: authorVal || undefined,
+      century: centuryVal || undefined,
+      blanks_count: blanksCount,
+      difficulty: passageDifficulty
+    }) as any;
 
-    if (passageData && Array.isArray(passageData.paragraphs) && passageData.paragraphs.length > 0) {
-      console.log("Successfully fetched passage with paragraphs:", passageData.paragraphs);
-      
-      // Store in cache for future use
+    if (
+      clozeResult &&
+      Array.isArray(clozeResult.paragraphs) &&
+      clozeResult.paragraphs.length > 0 &&
+      Array.isArray(clozeResult.answers)
+    ) {
+      // Store in cache for future use (optional, can be omitted if not needed)
       paragraphCache.set(cacheKey, JSON.stringify({
-        paragraphs: passageData.paragraphs,
-        metadata: passageData.metadata,
+        paragraphs: clozeResult.paragraphs,
+        metadata: clozeResult.metadata,
         timestamp: Date.now()
       }));
 
       // Display the metadata
-      if (bibliographicArea && passageData.metadata) {
-        let authorDisplayHTML = passageData.metadata.author; // Default to plain author name
+      if (bibliographicArea && clozeResult.metadata) {
+        let authorDisplayHTML = clozeResult.metadata.author; // Default to plain author name
         let factoidDisplayHTML = ''; // Default to no factoid
 
-        // This try-catch block for fetching bookInfoResult is largely existing
         try {
-          const bookInfoArgs = {
-            title: passageData.metadata.title,
-            author: passageData.metadata.author,
-            gutenbergId: passageData.metadata.id?.toString()
-          };
-          const bookInfoResult = await TOOL_MAPPING.getBookAuthorInfo(bookInfoArgs) as { factoid?: string; validatedUrl?: string };
+          // Call getBookAuthorInfo tool
+          const factoidResult = await TOOL_MAPPING.getBookAuthorInfo({
+            title: clozeResult.metadata.title,
+            author: clozeResult.metadata.author
+          }) as { factoid: string };
 
-          if (bookInfoResult) {
-            passageData.metadata.factoid = bookInfoResult.factoid; // Store for consistency
-            passageData.metadata.canonicalUrl = bookInfoResult.validatedUrl; // Store for consistency
+          debugLog("Tool results for newly fetched passage:", { factoidResult });
 
-            // NEW: If validatedUrl exists, make the author's name the link
-            if (bookInfoResult.validatedUrl) {
-              authorDisplayHTML = `<a href="${bookInfoResult.validatedUrl}" target="_blank" rel="noopener noreferrer" class="text-typewriter-ribbon hover:underline">${passageData.metadata.author}</a>`;
-            }
-            // Factoid display
-            if (bookInfoResult.factoid) {
-              factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${bookInfoResult.factoid}</p>`;
-            }
+          // Handle factoid result
+          if (factoidResult && factoidResult.factoid) {
+            clozeResult.metadata.factoid = factoidResult.factoid; // Store for consistency
+            factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
           }
         } catch (error) {
           console.error("Error fetching book/author info for newly fetched passage:", error);
@@ -851,7 +867,7 @@ export async function startRound(forceNewPassage: boolean = false) {
 
         // Construct the final HTML for the bibliographic area
         const biblioHTML = `
-          <h2 class="text-xl font-semibold mb-2 typewriter-text">${passageData.metadata.title}</h2>
+          <h2 class="text-xl font-semibold mb-2 typewriter-text">${clozeResult.metadata.title}</h2>
           <p class="typewriter-text">By ${authorDisplayHTML}</p>
           ${factoidDisplayHTML}
         `;
@@ -859,62 +875,44 @@ export async function startRound(forceNewPassage: boolean = false) {
 
         // Add to previous books history
         previousBooks.push({
-          title: passageData.metadata.title,
-          author: passageData.metadata.author,
-          id: passageData.metadata.id
+          title: clozeResult.metadata.title,
+          author: clozeResult.metadata.author,
+          id: clozeResult.metadata.id
         });
         localStorage.setItem('previousBooks', JSON.stringify(previousBooks));
       }
 
-      // Set up the game state with the successfully fetched paragraphs
-      if (passageData.paragraphs && passageData.paragraphs.length > 0) {
-        // Process paragraphs, splitting by double newlines to handle intentional paragraph breaks
-        paragraphsWords = [];
-        redactedIndices = [];
-        
-        // Process each passage paragraph
-        for (const paragraph of passageData.paragraphs) {
-          if (!paragraph || paragraph.trim() === '') continue;
-          
-          // Split by any sequence of newlines to handle intentional paragraph breaks
-          // This handles both \n\n and single \n that might be used for dialogue
-          const trueParagraphs = paragraph.split(/\n+/);
-          
-          for (const trueParagraph of trueParagraphs) {
-            if (trueParagraph.trim() === '') continue;
-            
-            // Check if this is a dialogue line (starts with quotes and is relatively short)
-            const isDialogue = trueParagraph.trim().startsWith('"') && 
-                              trueParagraph.length < 150; // Dialogue is typically short
-            
-            // Split into words and add to our array
-            const words = trueParagraph.split(' ');
-            if (words.length > 0) {
-              paragraphsWords.push(words);
-            }
-          }
-        }
-        
-        // Distribute blanks among paragraphs
-        let remainingBlanks = blanksCount;
-        const blankDistribution = distributeRedactions(paragraphsWords, remainingBlanks);
-        
-        // Create redaction indices for each paragraph
-        for (let i = 0; i < paragraphsWords.length; i++) {
-          const blanksForThisParagraph = blankDistribution[i] || 0;
-          redactedIndices[i] = chooseRedactions(paragraphsWords[i], blanksForThisParagraph);
-        }
-        
-        renderRound();
-        return passageData;
-      } else {
-        console.warn("Passage data missing or invalid paragraphs: ", passageData);
+      // Set up the game state with the successfully fetched paragraphs and answers
+      paragraphsWords = [];
+      redactedIndices = [];
+
+      // Use the returned paragraphs and answers
+      for (const paragraph of clozeResult.paragraphs) {
+        if (!paragraph || paragraph.trim() === '') continue;
+        const words = paragraph.split(' ');
+        paragraphsWords.push(words);
       }
+
+      // Build redactedIndices from answers
+      redactedIndices = paragraphsWords.map(() => []);
+      for (const ans of clozeResult.answers) {
+        if (
+          typeof ans.paragraphIndex === 'number' &&
+          typeof ans.wordIndex === 'number' &&
+          paragraphsWords[ans.paragraphIndex] &&
+          paragraphsWords[ans.paragraphIndex][ans.wordIndex]
+        ) {
+          redactedIndices[ans.paragraphIndex].push(ans.wordIndex);
+        }
+      }
+
+      renderRound();
+      return clozeResult;
     } else {
-      console.warn("Passage data missing or invalid: ", passageData);
+      console.warn("Cloze tool result missing or invalid: ", clozeResult);
     }
   } catch (error) {
-    console.error("Error when directly fetching passage:", error);
+    console.error("Error when directly fetching passage via cloze tool:", error);
   }
 
   // If we still don't have a passage, show a fallback
@@ -922,7 +920,7 @@ export async function startRound(forceNewPassage: boolean = false) {
     gameArea.innerHTML = `
       <div class="text-center p-4">
         <p class="text-lg text-red-500">Failed to fetch a passage. Please try again later.</p>
-        <button id="retry-fetch-btn" class="mt-4 px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded">
+        <button id="retry-fetch-btn" class="mt-4 px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon">
           Retry
         </button>
       </div>
@@ -931,7 +929,7 @@ export async function startRound(forceNewPassage: boolean = false) {
     // Add retry button functionality
     const retryBtn = document.getElementById('retry-fetch-btn');
     if (retryBtn) {
-      retryBtn.addEventListener('click', () => startRound(true));
+      retryBtn.addEventListener('click', () => startRound(true)); // Call startRound directly
     }
   }
   
@@ -1027,13 +1025,19 @@ export function handleSubmission() {
   // Determine if passed (>= 70%)
   const passed = scorePercentage >= 70;
   
-  // Show the existing Continue button in game controls and set up its functionality
+  // Show the existing Continue button and Analysis button in game controls and set up their functionality
   const continueButton = document.getElementById('continue-btn');
+  const analysisButton = document.getElementById('analysis-btn');
+  
   if (continueButton) {
     continueButton.style.display = 'flex'; // Show the button
     continueButton.onclick = () => {
-      // Hide the button again after clicking
+      // Hide both buttons again after clicking continue
       continueButton.style.display = 'none';
+      if (analysisButton) analysisButton.style.display = 'none';
+      // Clear any analysis content
+      const existingAnalysis = document.querySelector('.analysis-content');
+      if (existingAnalysis) existingAnalysis.remove();
       // Increment round if passed, otherwise stay on same round
       if (passed) {
         round++;
@@ -1043,9 +1047,152 @@ export function handleSubmission() {
     };
   }
   
+  if (analysisButton) {
+    analysisButton.style.display = 'flex'; // Show the analysis button
+    analysisButton.onclick = async () => {
+      await showAnalysis();
+    };
+  }
+  
   // Disable hint and submit buttons
   submitBtn.disabled = true;
   hintBtn.disabled = true;
+}
+
+/**
+ * Shows passage analysis including context and word analysis for the cloze test
+ */
+async function showAnalysis() {
+  if (!domElements) {
+    console.error("DOM elements not initialized for showAnalysis");
+    return;
+  }
+
+  const { gameArea, resultArea } = domElements;
+  if (!gameArea || !resultArea) return;
+
+  // Remove any existing analysis
+  const existingAnalysis = document.querySelector('.analysis-content');
+  if (existingAnalysis) {
+    existingAnalysis.remove();
+  }
+
+  // Create analysis container
+  const analysisContainer = document.createElement('div');
+  analysisContainer.className = 'analysis-content mt-4 p-4 bg-aged-paper-light rounded border border-typewriter-ink';
+  
+  // Show loading state
+  analysisContainer.innerHTML = `
+    <h3 class="text-lg font-semibold mb-3 typewriter-text">Analysis</h3>
+    <p class="typewriter-text text-sm">Generating analysis... <span class="animate-pulse">⚡</span></p>
+  `;
+  
+  // Insert analysis container after the result area
+  resultArea.insertAdjacentElement('afterend', analysisContainer);
+
+  try {
+    // Get the current passage metadata
+    const bibliographicArea = document.getElementById('bibliographic-area');
+    let title = 'Unknown Title';
+    let author = 'Unknown Author';
+    let factoid = '';
+
+    if (bibliographicArea) {
+      const titleElement = bibliographicArea.querySelector('h2');
+      const authorElement = bibliographicArea.querySelector('p');
+      const factoidElement = bibliographicArea.querySelector('p.italic');
+      
+      if (titleElement) title = titleElement.textContent || title;
+      if (authorElement) {
+        const authorText = authorElement.textContent || '';
+        author = authorText.replace('By ', '').trim() || author;
+      }
+      if (factoidElement) factoid = factoidElement.textContent || '';
+    }
+
+    // Get the redacted words
+    const redactedWords: Array<{word: string, sentence: string}> = [];
+
+    // Extract redacted words and their sentences
+    for (let pIdx = 0; pIdx < paragraphsWords.length; pIdx++) {
+      for (const wordIdx of redactedIndices[pIdx]) {
+        const word = paragraphsWords[pIdx][wordIdx];
+        if (word) {
+          // Find the sentence containing this word
+          const paragraph = paragraphsWords[pIdx].join(' ');
+          // For simplicity, use the whole paragraph as context
+          redactedWords.push({
+            word: word.replace(/[.,!?;:]+$/, ''),
+            sentence: paragraph
+          });
+        }
+      }
+    }
+
+    // Generate analysis using OpenRouter
+    let analysisHTML = `
+      <h3 class="text-lg font-semibold mb-3 typewriter-text">Analysis</h3>
+      <div class="space-y-3">
+    `;
+
+    // Add book context if available
+    if (factoid) {
+      analysisHTML += `
+        <div class="border-l-4 border-typewriter-ribbon pl-3">
+          <h4 class="font-medium typewriter-text mb-1">Context</h4>
+          <p class="typewriter-text text-sm">${factoid}</p>
+        </div>
+      `;
+    }
+
+    // Add word analysis for each redacted word
+    if (redactedWords.length > 0) {
+      analysisHTML += `
+        <div class="border-l-4 border-typewriter-ink pl-3">
+          <h4 class="font-medium typewriter-text mb-2">Word Analysis</h4>
+      `;
+
+      for (const {word, sentence} of redactedWords) {
+        try {
+          const wordAnalysis = await TOOL_MAPPING.getWordAnalysis({
+            sentence: sentence,
+            word: word
+          });
+
+          if (wordAnalysis && typeof wordAnalysis === 'object' && 'analysis' in wordAnalysis) {
+            analysisHTML += `
+              <div class="mb-2">
+                <span class="font-medium typewriter-text">"${word}":</span>
+                <span class="typewriter-text text-sm ml-2">${(wordAnalysis as any).analysis}</span>
+              </div>
+            `;
+          }
+        } catch (error) {
+          console.error(`Error analyzing word "${word}":`, error);
+          analysisHTML += `
+            <div class="mb-2">
+              <span class="font-medium typewriter-text">"${word}":</span>
+              <span class="typewriter-text text-sm ml-2 text-gray-600">Analysis unavailable</span>
+            </div>
+          `;
+        }
+      }
+
+      analysisHTML += `</div>`;
+    }
+
+    analysisHTML += `</div>`;
+    
+    // Update the analysis container with the generated content
+    analysisContainer.innerHTML = analysisHTML;
+
+  } catch (error) {
+    console.error('Error generating analysis:', error);
+    analysisContainer.innerHTML = `
+      <h3 class="text-lg font-semibold mb-3 typewriter-text">Analysis</h3>
+      <p class="typewriter-text text-sm text-red-600">Unable to generate analysis at this time.</p>
+    `;
+  }
 }
 
 /**

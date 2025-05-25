@@ -8,11 +8,13 @@
   },
   "homepage": "https://zmuhls.github.io/cloze-reader",
   "scripts": {
-    "dev": "parcel inference.html index.html",
-    "build": "parcel build inference.html index.html --public-url ./",
+    "dev": "parcel index.html --port 1234",
+    "build": "parcel build index.html --public-url ./",
     "predeploy": "rm -rf dist && npm run build",
     "deploy": "gh-pages -d dist",
-    "test": "jest"
+    "test": "jest",
+    "fetch-data": "node scripts/fetch-gutenberg-data.js",
+    "start": "npm run dev"
   },
   "keywords": [
     "typescript",
@@ -20,7 +22,7 @@
     "parcel",
     "game"
   ],
-  "author": "Cline",
+  "author": "Zach Muhlbauer",
   "license": "MIT",
   "devDependencies": {
     "@parcel/transformer-typescript-tsc": "^2.15.1",

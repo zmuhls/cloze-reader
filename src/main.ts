@@ -5,31 +5,26 @@ const FORCE_FALLBACK = false; // Using the provided API key
 import { debugLog } from '@/utils/debugLog';
 // Import the environment configuration utilities
 import { getEnvironmentConfig, isUsingUserProvidedApiKey } from '@/utils/environmentConfig';
-// Import HuggingFace Project Gutenberg API functions
+// Import HuggingFace Project Gutenberg API functions and types
 import { 
   searchGutenbergBooks, 
-  parseBookshelf, 
-  getBookText, 
-  fetchBookText, 
-  HuggingFaceBook 
+  getBookText,
+  enhanceSearchWithLLM
 } from '@/services/gutenbergService';
+import { HuggingFaceBook, parseBookshelf, SearchGutenbergBooksArgs } from '@/services/gutenbergTypes'; // Moved types
 import { runAgenticLoop, OpenRouterMessage } from '@/services/llmService';
 // Import game logic functions and state, including startRound and handleSubmission
 import { 
-  chooseRedactions, extractKeyTerms, renderRound, initializeGameDOMElements, 
-  paragraphsWords, redactedIndices, round as gameRound, blanksCount as gameBlanksCount, 
-  hintsRemaining as gameHintsRemaining, hintedBlanks as gameHintedBlanks, 
+  initializeGameDOMElements, 
   resetGame as gameLogicResetGame, 
-  ParagraphCache, ParagraphCacheItem, 
   startRound as gameLogicStartRound, 
   handleSubmission as gameLogicHandleSubmission
 } from '@/services/gameLogic';
 
-// Import diversity utilities
 
 // --- Game Specific API Functions ---
 // fetchGutenbergPassage is now exported for use in gameLogic.ts
-interface PassageData {
+export interface PassageData { // Exporting for gameLogic
   paragraphs: string[];
   metadata: {
     title: string;
@@ -73,121 +68,19 @@ Throughout history, literature has served as a mirror reflecting the values, con
   };
 }
 
-/**
- * Attempts to fetch a passage using the Gutendex API directly.
- * This provides a more direct and reliable source of books than LLM web search.
- * Note: Direct fetching of book text may encounter CORS issues, which will trigger a fallback to LLM.
- */
-async function fetchPassageWithGutendex(
-  category: string | null = null,
-  author: string | null = null,
-  century: string | null = null,
-  excludeIds: number[] = []
-): Promise<PassageData | null> {
-  try {
-    debugLog("Attempting to fetch passage with Gutendex API", { category, author, century, excludeIds });
-    
-    // Convert category to bookshelf name if using format "bookshelf/NNN"
-    const bookshelf = parseBookshelf(category);
-    debugLog("Parsed bookshelf", { category, bookshelf });
-    
-    // Search for books matching criteria - this API call usually works without CORS issues
-    const books = await searchGutenbergBooks({
-      bookshelf,
-      author: author || undefined,
-      century: century || undefined,
-      excludeIds,
-      limit: 20, // Get a good sample of books
-      language: 'en' // Default to English books
-    });
-    
-    if (!books || books.length === 0) {
-      debugLog("No books found with Gutendex matching criteria", { category, author, century });
-      return null;
-    }
-    
-    // Select a book from the results that hasn't been excluded
-    let selectedBook: HuggingFaceBook | null = null;
-    for (const book of books) {
-      if (!excludeIds.includes(book.id)) {
-        selectedBook = book;
-        break;
-      }
-    }
-
-    if (!selectedBook) {
-      debugLog("No suitable (non-excluded) books found with Gutendex matching criteria", { category, author, century, excludeIds });
-      return null;
-    }
-    
-    debugLog("Selected book from Gutendex", { 
-      id: selectedBook.id, 
-      title: selectedBook.title, 
-      author: selectedBook.author 
-    });
-    
-    // Get text content from the book
-    const bookText = getBookText(selectedBook);
-    if (!bookText) {
-      debugLog("No suitable text content found for book", { id: selectedBook.id });
-      return null;
-    }
-    
-    try {
-      // Get the book's text content
-      const fullText = await fetchBookText(selectedBook);
-      if (!fullText || fullText.length < 1000) {
-        debugLog("Book text too short or empty", { id: selectedBook.id, textLength: fullText?.length });
-        return null;
-      }
-      
-      // Extract paragraphs from the middle of the book
-      const paragraphs = extractParagraphsFromMiddle(fullText);
-      if (!paragraphs || paragraphs.length === 0) {
-        debugLog("Failed to extract paragraphs from book text", { id: selectedBook.id });
-        return null;
-      }
-      
-      debugLog("Successfully fetched passage with Gutendex API", { 
-        id: selectedBook.id, 
-        paragraphCount: paragraphs.length 
-      });
-      
-      // Return the passage data with metadata
-      return {
-        paragraphs,
-        metadata: {
-          title: selectedBook.title,
-          author: selectedBook.author,
-          id: selectedBook.id,
-        }
-      };
-    } catch (error: any) {
-      // If we encounter a CORS error when fetching the full text, we still have the book metadata
-      // We can return that so the LLM fallback can use it
-      debugLog("CORS error when fetching book text, returning metadata only for LLM fallback", { 
-        id: selectedBook.id,
-        error: error.message || "Unknown error"
-      });
-      
-      // Return a signal that we need to use LLM but with specific book metadata
-      throw new Error(`CORS error when fetching book text for ID ${selectedBook.id}: ${error.message || "Unknown error"}`);
-    }
-  } catch (error) {
-    console.error("Error fetching passage with Gutendex:", error);
-    return null;
-  }
-}
+// Function removed - we only use Hugging Face dataset API
 
 /**
- * Extracts 2-3 paragraphs from the middle of a book's text.
+ * Extracts 2-3 high-quality paragraphs from the middle of a book's text.
+ * Improved with better content detection and text quality scoring.
  */
 function extractParagraphsFromMiddle(text: string): string[] {
-  // Clean up the text
+  // Clean up the text more thoroughly
   const cleanText = text
     .replace(/\r\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n') // Normalize excessive newlines
-    .replace(/[^\S\n]+/g, ' '); // Normalize whitespace but preserve newlines
+    .replace(/[^\S\n]+/g, ' ') // Normalize whitespace but preserve newlines
+    .replace(/^\s+|\s+$/gm, ''); // Trim each line
   
   // Split into paragraphs
   const allParagraphs = cleanText
@@ -196,388 +89,239 @@ function extractParagraphsFromMiddle(text: string): string[] {
     .filter(p => p.length > 0);
   
   // If we don't have enough paragraphs, return empty array
-  if (allParagraphs.length < 5) {
+  if (allParagraphs.length < 8) {
     return [];
   }
   
-  // Filter out boilerplate and metadata paragraphs
-  const contentParagraphs = allParagraphs.filter(p => (
-    // Skip Project Gutenberg headers/footers
-    !p.includes('Project Gutenberg') &&
-    !p.includes('www.gutenberg.org') &&
-    !p.includes('Gutenberg') && 
-    !p.match(/^\*\*\*/) && // Skip lines starting with ***
-    !p.match(/^\[/) && // Skip lines starting with [
-    !p.includes('Produced by') &&
-    !p.includes('COPYRIGHT') &&
-    !p.includes('All rights reserved') &&
-    !p.includes('THE END') &&
-    !p.includes('THE BEGINNING') &&
-    !p.includes('CHAPTER') &&
-    p.length > 100 && // Skip too short paragraphs
-    p.split(/\s+/).length > 15 // At least 15 words
-  ));
+  // Enhanced filtering with quality scoring
+  const contentParagraphs = allParagraphs
+    .filter(p => {
+      // Basic content filters
+      const hasGutenbergContent = p.includes('Project Gutenberg') ||
+        p.includes('www.gutenberg.org') ||
+        p.includes('Produced by') ||
+        p.includes('COPYRIGHT') ||
+        p.includes('All rights reserved');
+        
+      const hasStructuralMarkers = p.match(/^\*\*\*/) ||
+        p.match(/^\[/) ||
+        p.includes('THE END') ||
+        p.includes('THE BEGINNING') ||
+        p.match(/^CHAPTER\s+[IVXLCDM\d]+/i) ||
+        p.match(/^[IVXLCDM]+\.\s/) ||
+        p.match(/^\d+\.\s/);
+        
+      const isMinimalContent = p.length < 120 || p.split(/\s+/).length < 20;
+      
+      // Check for dialogue-heavy content (less suitable for cloze)
+      const quoteCount = (p.match(/"/g) || []).length;
+      const isDialogueHeavy = quoteCount > 4;
+      
+      return !hasGutenbergContent && !hasStructuralMarkers && !isMinimalContent && !isDialogueHeavy;
+    })
+    .map(p => ({
+      text: p,
+      score: scoreParagraphQuality(p)
+    }))
+    .filter(p => p.score > 0.6) // Only keep high-quality paragraphs
+    .sort((a, b) => b.score - a.score); // Sort by quality
   
-  // If we don't have enough meaningful paragraphs, return empty array
-  if (contentParagraphs.length < 5) {
+  // If we don't have enough high-quality paragraphs, return empty array
+  if (contentParagraphs.length < 3) {
     return [];
   }
   
-  // Take paragraphs from the middle sections of the book
-  // This is to avoid prefaces, introductions, etc.
+  // Take paragraphs from different sections to ensure variety
+  const quarterPoint = Math.floor(contentParagraphs.length / 4);
   const midPoint = Math.floor(contentParagraphs.length / 2);
-  const thirdQuarter = Math.floor(contentParagraphs.length * 3 / 4);
+  const threeQuarterPoint = Math.floor(contentParagraphs.length * 3 / 4);
   
-  // Choose a random starting point in the middle third
-  const randomStart = Math.floor(midPoint + Math.random() * (thirdQuarter - midPoint));
-  const selectedParagraphs = contentParagraphs
-    .slice(randomStart, randomStart + 3)
-    .filter(p => p.length > 100) // Final length check
-    .slice(0, 2); // Take at most 2 paragraphs
+  const sections = [
+    contentParagraphs.slice(quarterPoint, midPoint),
+    contentParagraphs.slice(midPoint, threeQuarterPoint)
+  ].filter(section => section.length > 0);
   
-  return selectedParagraphs.length > 0 ? selectedParagraphs : [];
+  const selectedParagraphs: string[] = [];
+  
+  // Pick one paragraph from each available section
+  for (let i = 0; i < Math.min(2, sections.length); i++) {
+    const section = sections[i];
+    if (section.length > 0) {
+      const randomIndex = Math.floor(Math.random() * Math.min(3, section.length)); // Pick from top 3 in section
+      selectedParagraphs.push(section[randomIndex].text);
+    }
+  }
+  
+  return selectedParagraphs;
+}
+
+/**
+ * Scores paragraph quality for cloze test suitability
+ */
+function scoreParagraphQuality(paragraph: string): number {
+  let score = 0.5; // Base score
+  
+  const words = paragraph.split(/\s+/);
+  const sentences = paragraph.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  
+  // Length scoring (optimal range)
+  if (words.length >= 25 && words.length <= 60) {
+    score += 0.2;
+  } else if (words.length >= 20 && words.length <= 80) {
+    score += 0.1;
+  }
+  
+  // Sentence structure scoring
+  if (sentences.length >= 2 && sentences.length <= 4) {
+    score += 0.15;
+  }
+  
+  // Vocabulary diversity
+  const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^\w]/g, '')));
+  const diversityRatio = uniqueWords.size / words.length;
+  if (diversityRatio > 0.7) {
+    score += 0.15;
+  } else if (diversityRatio > 0.6) {
+    score += 0.1;
+  }
+  
+  // Penalize excessive punctuation or formatting
+  const punctuationCount = (paragraph.match(/[^\w\s]/g) || []).length;
+  const punctuationRatio = punctuationCount / paragraph.length;
+  if (punctuationRatio > 0.1) {
+    score -= 0.1;
+  }
+  
+  // Prefer narrative prose over lists or fragmented text
+  const hasNarrativeFlow = !paragraph.match(/^\s*[-\*\d]+\./m) && 
+    !paragraph.includes('\n') &&
+    sentences.length > 1;
+  if (hasNarrativeFlow) {
+    score += 0.1;
+  }
+  
+  return Math.max(0, Math.min(1, score));
 }
 
 
 /**
- * Fetches a passage from Project Gutenberg using Gutendex API with LLM fallback.
- * First attempts direct API access, then falls back to LLM web search if needed.
- * This combined approach ensures greater reliability and better category coverage.
+ * Fetches a passage from Project Gutenberg using Hugging Face dataset API.
+ * This function exclusively uses the Hugging Face API and does not rely on any local data.
  */
 export async function fetchGutenbergPassage(
   category: string | null = null,
   author: string | null = null,
   century: string | null = null,
-  // attemptedBookIds is now passed directly, no diversity utility
-  initialAttemptedBookIds: number[] = [] 
+  initialAttemptedBookIds: number[] = []
 ): Promise<PassageData | null> {
-  const MAX_RETRIES = 3;
-  const attemptedBookIds = Array.from(new Set([...initialAttemptedBookIds]));
-  
-  debugLog("Fetching Gutenberg passage", { category, author, century, initialAttemptedBookIds, finalAttemptedBookIds: attemptedBookIds });
+  debugLog("Fetching Gutenberg passage from Hugging Face dataset", { 
+    category, 
+    author, 
+    century, 
+    initialAttemptedBookIds,
+    endpoint: "https://huggingface.co/api/datasets/manu/project_gutenberg/parquet/default"
+  });
 
-  // CHECK 1: Use hardcoded fallback when forced
+  // Use static fallback if forced
   if (FORCE_FALLBACK) {
     debugLog("Forced fallback mode enabled, using static examples");
     return getStaticFallbackPassage(category);
   }
-  
-  // CHECK 2: Allow real Gutenberg fetching when possible
-  // Check for API key and environment (needed for LLM fallback)
-  const hasValidApiKey = Boolean(getEnvironmentConfig().OPENROUTER_API_KEY);
-  const isUsingCustomKey = isUsingUserProvidedApiKey();
-  const isGitHubPages = window.location.hostname.includes('github.io');
-  
-  debugLog("Environment check", { 
-    hasValidApiKey, 
-    isUsingCustomKey,
-    isGitHubPages, 
-    hostname: window.location,
-    apiKeyFormat: hasValidApiKey ? (getEnvironmentConfig().OPENROUTER_API_KEY.substring(0, 8) + "...") : "none",
-    forceFallback: FORCE_FALLBACK
-  });
-  
-  // APPROACH 1: Try using Gutendex API directly (doesn't require OpenRouter API key)
-  try {
-    // Even on GitHub Pages, we can try Gutendex first because it doesn't need an API key
-    debugLog("Attempting Gutendex API approach first");
-    const gutendexPassage = await fetchPassageWithGutendex(category, author, century, attemptedBookIds);
-    if (gutendexPassage) {
-      debugLog("Successfully fetched passage using Gutendex API", {
-        id: gutendexPassage.metadata?.id,
-        title: gutendexPassage.metadata?.title
-      });
-      return gutendexPassage;
-    }
-    debugLog("Gutendex API approach failed, will try LLM web search if possible");
-  } catch (error) {
-    console.error("Error in Gutendex API approach:", error);
-    debugLog("Gutendex API approach failed with error, will try LLM web search if possible");
-  }
 
-  // APPROACH 2: Fall back to hardcoded passages if we can't use LLM
-  // This handles cases where we're on GitHub Pages without a custom API key
-  if (!hasValidApiKey) {
-    debugLog("Cannot use LLM fallback without valid API key, using static examples");
+  try {
+    // Search for a book using only Hugging Face dataset
+    const searchArgs: SearchGutenbergBooksArgs = {
+      bookshelf: category ? parseBookshelf(category) : undefined,
+      author: author || undefined,
+      century: century || undefined,
+      excludeIds: initialAttemptedBookIds,
+      limit: 25, // Increased limit for better results
+      language: 'en' // Default to English books
+    };
+
+    // Get books directly from Hugging Face dataset API with improved error handling
+    let books = [];
+    try {
+      books = await searchGutenbergBooks(searchArgs);
+      
+      // Log some debug information about the response
+      debugLog("Hugging Face API response", {
+        booksReceived: books.length,
+        firstBookTitle: books.length > 0 ? books[0].title : "No books found"
+      });
+      
+      // If no books returned from the API, use static fallback
+      if (!books || books.length === 0) {
+        debugLog("No books returned from Hugging Face API, using fallback");
+        return getStaticFallbackPassage(category);
+      }
+    } catch (error) {
+      console.error("Error fetching books from Hugging Face API:", error);
+      debugLog("API error details:", { 
+        message: error instanceof Error ? error.message : String(error), 
+        endpoint: "https://huggingface.co/api/datasets/manu/project_gutenberg/parquet/default" 
+      });
+      return getStaticFallbackPassage(category);
+    }
+    
+    // If we have search criteria, try to enhance results with LLM
+    const hasSearchCriteria = category || author || century;
+    if (hasSearchCriteria && books.length > 0) {
+      const criteria = [];
+      if (author) criteria.push(`by ${author}`);
+      if (category) criteria.push(`in category ${category}`);
+      if (century) criteria.push(`from ${century}th century`);
+      const query = criteria.join(' ');
+      
+      books = await enhanceSearchWithLLM(books, query);
+    }
+
+    // Get a random book from the results
+    const book = books[Math.floor(Math.random() * books.length)];
+    if (!book) {
+      debugLog("No suitable book found in dataset");
+      return getStaticFallbackPassage(category);
+    }
+
+    debugLog("Selected book from dataset", {
+      id: book.id,
+      title: book.title,
+      author: book.author
+    });
+
+    // Get text content
+    const bookText = getBookText(book);
+    if (!bookText || bookText.length < 1000) {
+      debugLog("Book text too short or empty", { id: book.id });
+      return getStaticFallbackPassage(category);
+    }
+
+    // Extract paragraphs from the middle of the book
+    const paragraphs = extractParagraphsFromMiddle(bookText);
+    if (!paragraphs || paragraphs.length === 0) {
+      debugLog("Failed to extract paragraphs from book text", { id: book.id });
+      return getStaticFallbackPassage(category);
+    }
+
+    debugLog("Successfully extracted passage from dataset", {
+      id: book.id,
+      paragraphCount: paragraphs.length
+    });
+
+    // Return the passage data with metadata
+    return {
+      paragraphs,
+      metadata: {
+        title: book.title,
+        author: book.author,
+        id: typeof book.id === 'string' ? parseInt(book.id.replace(/\D/g, '')) || 0 : book.id,
+        canonicalUrl: `https://www.gutenberg.org/ebooks/${book.id}`
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching passage:", error);
     return getStaticFallbackPassage(category);
   }
-  
-  // APPROACH 3: Try LLM web search as a fallback
-  // This is our last resort, used when Gutendex API failed but we have a valid API key
-  debugLog("Falling back to LLM web search for passage");
-
-  // Retry loop for LLM-based fetching
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    debugLog(`LLM fallback attempt ${attempt + 1} of ${MAX_RETRIES}. Attempted IDs: ${attemptedBookIds.join(', ')}`);
-
-    const queryParts = [];
-    if (author) queryParts.push(`by author "${author}"`);
-    
-    if (category) {
-      if (category.includes('/')) {
-        const categoryCode = category.split('/')[1];
-        if (categoryCode) {
-          queryParts.push(`in the Gutenberg bookshelf ID "${categoryCode}"`);
-          debugLog(`Using bookshelf ID "${categoryCode}" from category "${category}".`);
-        } else {
-          debugLog(`Could not extract bookshelf ID from category "${category}". Category will be ignored.`);
-        }
-      } else {
-        queryParts.push(`in the category "${category}"`);
-      }
-    }
-
-    if (century) {
-      const centuryNumber = parseInt(century);
-      if (!isNaN(centuryNumber)) {
-          // Correctly format the century string (19 = 19th century, not 20th)
-          queryParts.push(`from the ${centuryNumber}th century`);
-      }
-    }
-
-    let queryString = queryParts.join(' ');
-    let baseQueryInstruction: string;
-
-    if (queryParts.length > 0) {
-      baseQueryInstruction = `from Project Gutenberg ${queryString}`;
-      debugLog("Specific criteria provided: using standard query string.");
-    } else {
-      // For the initial fetch when no user settings are provided,
-      // use a more specific instruction to encourage randomness and variety.
-      baseQueryInstruction = "from a random book in the catalogue, increasing variety and diverse selections, and avoiding the most popular books on Gutenberg. Never repeat the same book or passage in the same session";
-      debugLog("No specific criteria: using new enhanced random query string for initial fetch.");
-    }
-    
-    let retryInstructions = "";
-    if (attempt > 0) {
-      retryInstructions = ` This is attempt ${attempt + 1}. Please ensure you select a *different* book than previous cached attempts.`;
-    }
-    
-    // Diversity seed logic removed; Gutendex handles randomization.
-
-    if (attemptedBookIds.length > 0) {
-      retryInstructions += ` Avoid Project Gutenberg IDs: ${attemptedBookIds.join(', ')}.`;
-    }
-    
-    const userQuery = `Please provide a short passage (2-3 paragraphs) from Project Gutenberg.
-${baseQueryInstruction ? `Ideally, the passage should be ${baseQueryInstruction}.` : 'The passage can be from any work for the Gutenberg project catalogue.'}
-${retryInstructions}
-
-IMPORTANT GUIDELINES:
-1. Select a passage from the *middle* of the book's content, avoiding the beginning (which often contains copyright and metadata) and the end (which may contain boilerplate).
-2. Ensure the passage contains complete sentences and paragraphs with coherent meaning.
-3. The passage must be VERBATIM from the actual Gutenberg text - do not modify, summarize, or generate text.
-4. Verify the Project Gutenberg ID is correct and still available on the Gutenberg website.
-6. Copy and paste text rather than paraphrasing to ensure exact matching with the source.
-
-Format to follow EXACTLY:
-Title: [Full Book Title]
-Author: [Author Name]
-ID: [Book ID Number - just the number]
-Passage:
-[The exact passage text, copied verbatim from the source]
-
-If no passage can be found, please indicate that clearly. Focus on returning a passage that can be precisely verified against the original source.`;
-
-    const messages: OpenRouterMessage[] = [
-      { role: 'system', content: 'You are an assistant that helps find and display either random or queried passages from Project Gutenberg. Please provide the passage text along with its title, author, and Project Gutenberg ID if available. Prioritize finding a passage, even if specific search criteria (like category, author, or century) cannot all be met. Avoid adding commentary or analysis not present in the original text. Never fetch the same passage or Gutenberg ID twice, striving for selection variety. When selecting a passage, prioritize content from the middle of the book to avoid boilerplate and copyright information. CRITICALLY IMPORTANT: The passage MUST be quoted EXACTLY as it appears in the source text to ensure validation can succeed. Do not modify, paraphrase or generate passages - they must be identical to what appears in the actual Gutenberg book. Provide accurate IDs that correspond to existing books on gutenberg.org.' },
-      { role: 'user', content: userQuery }
-    ];
-
-    try {
-      // Determine temperature: higher for purely random, default otherwise
-      const temperature = (queryParts.length === 0) ? 0.7 : undefined;
-      debugLog(`LLM call (attempt ${attempt + 1}) with temperature: ${temperature === undefined ? 'default' : temperature}`);
-      const llmResponseContent = await runAgenticLoop(messages, [], temperature); 
-
-      if (!llmResponseContent) {
-        console.error(`LLM call (attempt ${attempt + 1}) returned no content.`);
-        if (attempt === MAX_RETRIES - 1) return null; // Last attempt failed
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retrying
-        continue; // Next attempt
-      }
-
-      debugLog(`LLM Web Search Response for Passage (attempt ${attempt + 1}):`, llmResponseContent);
-
-      let bookTitle = "Unknown Title";
-      let bookAuthor = "Unknown Author";
-      let bookId: number | null = null;
-      let passageText = "";
-
-      const titleMatch = llmResponseContent.match(/Title:\s*(.*)/i);
-      if (titleMatch && titleMatch[1]) bookTitle = titleMatch[1].trim();
-
-      const authorMatch = llmResponseContent.match(/Author:\s*(.*)/i);
-      if (authorMatch && authorMatch[1]) bookAuthor = authorMatch[1].trim();
-
-      const idMatch = llmResponseContent.match(/ID:\s*(\d+)/i);
-      if (idMatch && idMatch[1]) bookId = parseInt(idMatch[1], 10);
-      
-      // Extract URL if provided to get canonical link format
-      const urlMatch = llmResponseContent.match(/URL:\s*(https:\/\/www\.gutenberg\.org\/ebooks\/\d+)/i);
-      let canonicalUrl: string | null = null;
-      
-      if (urlMatch && urlMatch[1]) {
-        canonicalUrl = urlMatch[1].trim();
-        // If we have a canonical URL but no ID, try to extract ID from URL
-        if (!bookId && canonicalUrl) {
-          const urlIdMatch = canonicalUrl.match(/\/ebooks\/(\d+)/);
-          if (urlIdMatch && urlIdMatch[1]) {
-            bookId = parseInt(urlIdMatch[1], 10);
-            debugLog("Extracted book ID from canonical URL", { canonicalUrl, bookId });
-          }
-        }
-      } else if (bookId) {
-        // If we have an ID but no URL, construct the canonical URL
-        canonicalUrl = `https://www.gutenberg.org/ebooks/${bookId}`;
-        debugLog("Constructed canonical URL from book ID", { bookId, canonicalUrl });
-      }
-
-      // Add bookId to attemptedBookIds if valid and not already present
-      // This is important for the retry logic so the LLM knows what it already tried.
-      if (bookId !== null && !attemptedBookIds.includes(bookId)) {
-        attemptedBookIds.push(bookId);
-      }
-
-      // Check if the LLM returned a book ID that should have been avoided
-      if (bookId !== null && initialAttemptedBookIds.includes(bookId)) {
-        console.warn(`LLM returned a previously selected book ID (${bookId}) despite instructions. Retrying if attempts remain.`);
-        debugLog(`LLM returned an excluded book ID: ${bookId}. Initial excluded: ${initialAttemptedBookIds.join(', ')}`);
-        if (attempt === MAX_RETRIES - 1) return null; // Last attempt failed
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Wait before retrying
-        continue; // Next attempt
-      }
-      
-      const passageMarker = "Passage:";
-      const passageStartIndex = llmResponseContent.indexOf(passageMarker);
-
-      if (passageStartIndex !== -1) {
-        passageText = llmResponseContent.substring(passageStartIndex + passageMarker.length).trim();
-      } else {
-        let lastMetadataIndex = 0;
-        if (titleMatch) lastMetadataIndex = Math.max(lastMetadataIndex, (titleMatch.index || 0) + titleMatch[0].length);
-        if (authorMatch) lastMetadataIndex = Math.max(lastMetadataIndex, (authorMatch.index || 0) + authorMatch[0].length);
-        if (idMatch) lastMetadataIndex = Math.max(lastMetadataIndex, (idMatch.index || 0) + idMatch[0].length);
-        if (lastMetadataIndex > 0 && lastMetadataIndex < llmResponseContent.length) {
-          passageText = llmResponseContent.substring(lastMetadataIndex).trim();
-        } else if (!titleMatch && !authorMatch && !idMatch) {
-          passageText = llmResponseContent.trim();
-          debugLog("No metadata markers found, assuming entire response is passage text.");
-        }
-      }
-      
-      if (!passageText || llmResponseContent.toLowerCase().includes("no suitable passage found")) {
-          console.warn(`Attempt ${attempt + 1}: Could not extract passage text or LLM indicated no passage found.`);
-          if (attempt === MAX_RETRIES - 1) return null; // Last attempt failed
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retrying
-          continue; // Next attempt
-      }
-
-      // Attempt to preserve original formatting, especially for poetry
-      let paragraphs = passageText
-        .replace(/\r\n/g, '\n') // Standardize line endings
-        .split(/\n{2,}/) // Split by two or more newlines (handles most paragraphs and stanzas)
-        .map((p: string) => p.trim())
-        .filter((p: string) => {
-          // Filter out short lines, metadata, and project Gutenberg specific text
-          const isMetadata = p.startsWith('Project Gutenberg') || 
-                          p.startsWith('***') || 
-                          p.includes('*** END OF ') || 
-                          p.startsWith('THE END') || 
-                          p.includes('www.gutenberg.org') || 
-                          /^\*+$/.test(p) || 
-                          p.includes('Produced by') || 
-                          p.includes('Ebook') || 
-                          p.includes('Illustrations by') || 
-                          p.includes('Transcriber') ||
-                          // Additional patterns to filter out legal disclaimers and notices
-                          p.includes('not located in the United States') ||
-                          p.includes('laws of the country where you are located') ||
-                          p.includes('check the laws') ||
-                          p.includes('using this ebook') ||
-                          p.includes('copyright laws') ||
-                          (p.includes('United States') && p.includes('copyright')) ||
-                          p.includes('Project Gutenberg Literary Archive Foundation') ||
-                          p.includes('FULL PROJECT GUTENBERG') ||
-                          p.includes('BEFORE YOU USE') ||
-                          p.includes('permission and restrictions') ||
-                          p.includes('public domain') ||
-                          p.includes('LICENSE') ||
-                          p.includes('WARRANTY');
-          
-          const isTooShort = p.split(/\s+/).length < 10; // Filter paragraphs with less than 10 words
-
-          // Heuristic to detect potential poetry or formatted text:
-          // Check if lines within the "paragraph" are relatively short and consistent in length
-          const lines = p.split('\n').filter(line => line.trim().length > 0);
-          const avgLineLength = lines.reduce((sum, line) => sum + line.trim().length, 0) / lines.length;
-          const isPotentiallyPoetry = lines.length > 3 && avgLineLength < 60; // More than 3 lines and average line length less than 60
-
-          return !isMetadata && (!isTooShort || isPotentiallyPoetry); // Keep if not metadata and either long enough or potentially poetry
-        })
-        .slice(0, 10); // Take up to 10 potential paragraphs
-
-      // If we don't have enough paragraphs, try a more aggressive split (less likely to preserve poetry)
-      if (paragraphs.length < 2) {
-        debugLog(`Attempt ${attempt + 1}: First parsing didn't yield enough paragraphs, trying alternative.`);
-        paragraphs = passageText
-          .replace(/\r\n/g, '\n')
-          .split(/\n/) // Split by single newlines
-          .map((p: string) => p.trim())
-          .filter((p: string) => p.length > 100 && !p.includes('Project Gutenberg') && !p.includes('Produced by') && !p.includes('Ebook') && !p.includes('Illustrations by') && !p.includes('Transcriber')) // Filter for longer lines/paragraphs and exclude more metadata
-          .slice(0, 10);
-      }
-
-      // Sort by length to prioritize longer paragraphs, but keep original order for poetry
-      // Simple heuristic: if a paragraph has many short lines, assume it's poetry and don't sort it by length
-      const isLikelyPoetry = (p: string) => {
-          const lines = p.split('\n').filter(line => line.trim().length > 0);
-          const avgLineLength = lines.reduce((sum, line) => sum + line.trim().length, 0) / lines.length;
-          return lines.length > 3 && avgLineLength < 60;
-      };
-
-      const proseParagraphs = paragraphs.filter(p => !isLikelyPoetry(p));
-      const poetryParagraphs = paragraphs.filter(isLikelyPoetry);
-
-      proseParagraphs.sort((a, b) => b.length - a.length); // Sort prose by length
-
-      // Combine, prioritizing poetry if present, then longer prose
-      paragraphs = [...poetryParagraphs, ...proseParagraphs].slice(0, 2);
-
-      if (paragraphs.length === 0) {
-        debugLog(`Attempt ${attempt + 1}: Failed to extract suitable paragraphs after all parsing attempts.`);
-      }
-
-      // If we have at least one good paragraph, proceed. Otherwise, retry.
-      if (paragraphs.length > 0) {
-        console.log(`Attempt ${attempt + 1}: Successfully extracted ${paragraphs.length} paragraphs.`);
-        // Record the successful selection
-        // No need to record book selection; Gutendex handles randomization.
-        return {
-          paragraphs: paragraphs,
-          metadata: {
-            title: bookTitle,
-            author: bookAuthor,
-            id: bookId !== null ? bookId : 0,
-            canonicalUrl: canonicalUrl || undefined
-          }
-        };
-      } else {
-        console.warn(`Attempt ${attempt + 1}: Could only extract ${paragraphs.length} suitable paragraphs. Retrying if attempts remain.`);
-        // No suitable paragraphs found in this attempt, loop will continue if attempts < MAX_RETRIES
-      }
-
-    } catch (error) {
-      console.error(`Error in fetchGutenbergPassage (LLM web search, attempt ${attempt + 1}):`, error);
-      // Loop will continue if attempts < MAX_RETRIES
-    }
-    if (attempt < MAX_RETRIES - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff might be better
-    }
-  } // End of retry loop
-
-  console.error("Failed to fetch a suitable passage after all retries.");
-  return null; // Indicate failure after all retries
 }
 
 // Function to reset game state for a new game (not just a new round)
@@ -667,116 +411,27 @@ if (typeof window !== 'undefined') {
 
 // Initialize the application when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Cache DOM elements - wait a short time to ensure all elements are rendered
-    setTimeout(() => {
-        // cacheDOMElements(); // Moved to app.tsx after game controls are rendered
-        
-        // Attach event listeners after caching elements
-        attachEventListeners();
-    }, 100); // Small delay to ensure DOM is fully ready
-    
-    // Log API access info for clarity - helpful for GitHub Pages deployment
-    console.log("Application initialized. Using Gutendex API directly.");
+  // DOM element caching and event listener attachment are now primarily handled by app.tsx
+  // and gameLogic.ts after the WelcomeOverlay is dismissed.
+  // The 'DOMContentLoaded' listener here can be simplified or removed if app.tsx handles all initial setup.
+
+  // Log API access info for clarity - helpful for GitHub Pages deployment
+  console.log("MAIN.TS: Application script loaded. Initialization will be handled by app.tsx.");
+
+  // The cacheDOMElements and attachEventListeners functions are no longer strictly needed here
+  // as app.tsx and its components manage their DOM interactions.
+  // However, if there are any global, non-Preact elements that need early setup,
+  // they could be handled here. For now, we assume Preact handles all relevant UI.
 });
 
-// Separate function to attach event listeners
-function attachEventListeners() {
-    // Set up event listeners
-    if (newTextBtn) {
-      newTextBtn.addEventListener('click', async () => {
-        // Fetch a new passage without resetting game state, forcing a new passage
-        await gameLogicStartRound(true);
-      });
-    }
-    
-    // Use a more robust approach to find and attach event listeners to game control buttons
-    // This uses a mutation observer to detect when the buttons are added to the DOM
-    const gameControlsObserver = new MutationObserver((mutations) => {
-      // Check if game controls have been added
-      const gameControls = document.getElementById('game-controls');
-      if (gameControls) {
-        const newSubmitBtn = gameControls.querySelector('#submit-btn') as HTMLButtonElement;
-        const newHintBtn = gameControls.querySelector('#hint-btn') as HTMLButtonElement;
-        
-        if (newSubmitBtn && (!submitBtn || submitBtn !== newSubmitBtn)) {
-          console.log("Found submit button, attaching click handler");
-          submitBtn = newSubmitBtn;
-          submitBtn.addEventListener('click', () => {
-            console.log("Submit button clicked");
-            gameLogicHandleSubmission();
-          });
-        }
-        
-        if (newHintBtn && (!hintBtn || hintBtn !== newHintBtn)) {
-          console.log("Found hint button");
-          hintBtn = newHintBtn;
-        }
-        
-        // If we found both buttons, update the game logic DOM elements
-        if (submitBtn && hintBtn) {
-          console.log("Initializing game DOM elements with found buttons");
-          initializeGameDOMElements({
-            gameArea,
-            roundInfo,
-            submitBtn,
-            hintBtn,
-            resultArea,
-            bibliographicArea
-          });
-          
-          // We can disconnect the observer once we've found the buttons
-          gameControlsObserver.disconnect();
-        }
-      }
-    });
-    
-    // Start observing the document body for changes
-    gameControlsObserver.observe(document.body, { 
-      childList: true, 
-      subtree: true 
-    });
-    
-    // Use a mutation observer to detect when the roundInfo element is updated
-    const roundInfoObserver = new MutationObserver((mutations) => {
-      // Check if roundInfo has been added or updated
-      const newRoundInfo = document.getElementById('round-info');
-      if (newRoundInfo && (!roundInfo || roundInfo !== newRoundInfo)) {
-        console.log("Found updated round-info element, updating reference");
-        roundInfo = newRoundInfo;
-        
-        // Update the game logic DOM elements with the new roundInfo
-        initializeGameDOMElements({
-          gameArea,
-          roundInfo,
-          submitBtn,
-          hintBtn,
-          resultArea,
-          bibliographicArea
-        });
-      }
-    });
-    
-    // Start observing the document body for changes to the roundInfo element
-    roundInfoObserver.observe(document.body, { 
-      childList: true, 
-      subtree: true 
-    });
-    
-    if (settingsBtn) {
-      settingsBtn.addEventListener('click', () => {
-        const settingsFooterContainer = document.getElementById('settings-footer-container');
-        const settingsHeader = settingsFooterContainer?.querySelector('.settings-header');
-        if (settingsHeader instanceof HTMLElement) {
-          settingsHeader.click(); // Programmatically click the header inside the Preact component
-        }
-      });
-    }
-    
-    // Show welcome overlay
-    // The welcome overlay visibility is now primarily managed by the App component's state
-    // and the WelcomeOverlay component itself.
-    // However, ensuring it's initially visible if not handled by Preact's initial render might still be useful.
-    // For now, let's assume Preact handles initial visibility correctly.
-    // If issues arise, we might need to revisit this.
-    // welcomeOverlay.classList.remove('hidden'); // This line can likely be removed or conditionalized
+// Removed cacheDOMElements and attachEventListeners from main.ts
+// as these are now more tightly coupled with Preact component lifecycle in app.tsx
+// and gameLogic.ts for game-specific controls.
+
+// Make functions globally available for legacy/debug purposes if absolutely necessary,
+// but prefer component-based interactions.
+if (typeof window !== 'undefined') {
+    (window as any).fetchGutenbergPassage = fetchGutenbergPassage; // Expose for debugging or specific calls
+    (window as any).startRound = gameLogicStartRound; // Already exposed in gameLogic, but can be here too
+    console.log("MAIN.TS: Added global functions to window object for debugging.");
 }

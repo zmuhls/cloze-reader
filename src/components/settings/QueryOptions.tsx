@@ -1,11 +1,11 @@
 import { h, FunctionComponent } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { signal } from '@preact/signals';
+import * as signals from '@preact/signals'; // Changed to namespace import
 
 // Define signals for query options
-export const categorySignal = signal(localStorage.getItem('game_category') || '');
-export const authorSignal = signal(localStorage.getItem('game_author') || '');
-export const centurySignal = signal(localStorage.getItem('game_century') || '');
+export const categorySignal = signals.signal(localStorage.getItem('game_category') || ''); // Updated to use namespace
+export const authorSignal = signals.signal(localStorage.getItem('game_author') || ''); // Updated to use namespace
+export const centurySignal = signals.signal(localStorage.getItem('game_century') || ''); // Updated to use namespace
 
 interface QueryOptionsProps {
   isRemoteInterface?: boolean;

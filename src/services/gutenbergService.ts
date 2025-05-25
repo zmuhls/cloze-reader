@@ -1,225 +1,258 @@
 // src/services/gutenbergService.ts
 
 import { debugLog } from '@/utils/debugLog';
+import { 
+  HuggingFaceBook, 
+  SearchGutenbergBooksArgs,
+  HuggingFaceDatasetResponse
+} from './gutenbergTypes';
+import { getEnvironmentConfig } from '@/utils/environmentConfig';
+import { runAgenticLoop, OpenRouterMessage } from './llmService';
 
-// --- New HuggingFace Project Gutenberg Dataset Types ---
-export interface HuggingFaceBook {
-  id: number;          // Unique identifier
-  title: string;       // Book title
-  author: string;      // Book author
-  text: string;        // Book content
-  language: string;    // Language code
-  subjects?: string[]; // Optional subjects
-  bookshelves?: string[]; // Optional bookshelves
-}
+// Cache for dataset responses
+const datasetCache = new Map<string, { data: HuggingFaceBook[], timestamp: number }>();
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-export interface HuggingFaceDatasetResponse {
-  features: Record<string, { dtype: string; }>;
-  rows: HuggingFaceBook[];
-  num_rows: number;
-}
-
-export interface HuggingFaceSplitsResponse {
-  splits: string[];
-}
-
-export interface HuggingFaceParquetFilesResponse {
-  parquet_files: string[];
-  safe_name?: string;
-}
-
-export interface SearchGutenbergBooksArgs {
-  bookshelf?: string; // e.g. "Science-Fiction"
-  subject?: string;   // e.g. "Detective and mystery stories"
-  author?: string;
-  century?: string;   // e.g. "19" for 20th century
-  language?: string;  // e.g. "en"
-  excludeIds?: number[]; // Exclude specific Gutenberg IDs, including 485
-  copyright?: boolean;
-  limit?: number;
-  offset?: number;
-}
+// Maximum number of retries for API calls
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
 /**
- * Maps bookshelf/category codes to bookshelf names.
- * Maps UI bookshelf IDs to bookshelf names.
+ * Helper function to delay execution
  */
-export const BOOKSHELF_ID_MAP: Record<string, string> = {
-  // These match the values in QueryOptions.tsx
-  "466": "Philosophy & Ethics",
-  "478": "Science (General)",
-  "468": "Politics",
-  "446": "History (General)",
-  "458": "Literature",
-  "460": "Music",
-  "484": "Teaching & Education",
-  "459": "Mathematics",
-  "427": "Biographies",
-  "486": "Fiction (General)",
-  "480": "Science-Fiction & Fantasy",
-  "433": "Crime/Mystery",
-  "453": "Humour",
-  "467": "Poetry", 
-  "485": "Travel & Geography"
-};
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Converts a bookshelf/category string (e.g. "bookshelf/480") to a bookshelf name.
- */
-export function parseBookshelf(category: string | null | undefined): string | undefined {
-  if (!category) return undefined;
-  if (category.startsWith("bookshelf/")) {
-    const code = category.split("/")[1];
-    return BOOKSHELF_ID_MAP[code] || undefined;
-  }
-  return category;
-}
-
-/**
- * Converts a century string (e.g. "15") to a year range.
- * Note: In the UI, "15" refers to the 16th century (1500-1599).
- * This means we use the century number directly as the first two digits of the year.
- */
-export function centuryToYearRange(century: string | null | undefined): { start: number, end: number } | undefined {
-  if (!century) return undefined;
-  const c = parseInt(century, 10);
-  if (isNaN(c)) return undefined;
-  // "15" means 16th century: 1500-1599
-  const start = c * 100;
-  const end = start + 99;
-  return { start, end };
-}
-
-/**
- * Fetches the list of split names for the Project Gutenberg dataset.
- */
-export async function fetchDatasetSplits(): Promise<string[]> {
-  try {
-    const url = "https://datasets-server.huggingface.co/splits?dataset=manu%2Fproject_gutenberg";
-    debugLog("Fetching dataset splits from HuggingFace", { url });
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch dataset splits: ${response.status}`);
-    }
-    
-    const data: HuggingFaceSplitsResponse = await response.json();
-    return data.splits;
-  } catch (error) {
-    console.error("Error fetching dataset splits:", error);
-    return [];
-  }
-}
-
-/**
- * Fetches the list of Parquet files for a specific split of the dataset.
- */
-export async function fetchParquetFiles(split: string = "de"): Promise<string[]> {
-  try {
-    const url = `https://huggingface.co/api/datasets/manu/project_gutenberg/parquet/default/${split}`;
-    debugLog("Fetching Parquet files from HuggingFace", { url, split });
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Parquet files: ${response.status}`);
-    }
-    
-    const data: HuggingFaceParquetFilesResponse = await response.json();
-    return data.parquet_files;
-  } catch (error) {
-    console.error("Error fetching Parquet files:", error);
-    return [];
-  }
-}
-
-import { searchLocalGutenbergBooks } from './localGutenbergService';
-
-/**
- * Searches for books in the Project Gutenberg dataset matching the given criteria.
- * Uses the local dataset if available, otherwise falls back to the remote API.
+ * Searches for books in the Project Gutenberg dataset using Hugging Face Datasets Server API
+ * See: https://huggingface.co/docs/datasets-server/rows
  */
 export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Promise<HuggingFaceBook[]> {
-  // Try local dataset first
   try {
-    const localBooks = await searchLocalGutenbergBooks(args);
-    if (localBooks && localBooks.length > 0) {
-      debugLog("Using local Project Gutenberg dataset for search.");
-      return localBooks;
-    }
-  } catch (localError) {
-    debugLog("Local dataset access failed, falling back to HuggingFace API", { error: localError });
-  }
+    // Generate cache key based on search criteria
+    const cacheKey = JSON.stringify(args);
+    const now = Date.now();
+    const cached = datasetCache.get(cacheKey);
 
-  // Fallback to remote API
-  try {
-    const split = args.language === "de" ? "de" : "default";
+    // Return cached data if valid
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      debugLog("Using cached dataset results", { args });
+      return cached.data;
+    }
+
+    // Construct Datasets Server API URL with query parameters
+    const dataset = "manu/project_gutenberg";
+    const config = "default";
+    // Use the correct split based on language; default to "en"
+    const validSplits = ["de", "en", "es", "fr", "it", "nl", "pl", "pt", "ru", "sv", "zh"];
+    let split = "en";
+    if (args.language && validSplits.includes(args.language)) {
+      split = args.language;
+    }
     const offset = args.offset || 0;
     const length = args.limit || 100;
-    const url = `https://datasets-server.huggingface.co/rows?dataset=manu%2Fproject_gutenberg&config=default&split=${split}&offset=${offset}&length=${length}`;
-    debugLog("Searching Project Gutenberg dataset from HuggingFace", { 
-      url, 
-      split, 
-      offset, 
-      length,
-      searchCriteria: args 
-    });
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch books: ${response.status}`);
-    }
-    const data: HuggingFaceDatasetResponse = await response.json();
-    let books = data.rows;
 
-    // Apply filters based on search criteria (same as before)
+    const params = new URLSearchParams({
+      dataset,
+      config,
+      split,
+      offset: offset.toString(),
+      length: length.toString()
+    });
+
+    const url = `https://datasets-server.huggingface.co/rows?${params.toString()}`;
+
+    let lastError: Error | null = null;
+    let books: HuggingFaceBook[] = [];
+
+    // Retry loop
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        debugLog(`Fetching from Hugging Face Datasets Server (attempt ${attempt}/${MAX_RETRIES})`, { url, args });
+        const { HUGGINGFACE_API_KEY } = getEnvironmentConfig();
+        // Try with API key first, then without if 401
+        let headers: Record<string, string> = { 'Accept': 'application/json' };
+        let response: Response | null = null;
+        let triedWithoutAuth = false;
+
+        for (let authAttempt = 0; authAttempt < 2; authAttempt++) {
+          if (authAttempt === 0 && HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY.startsWith('hf_')) {
+            headers['Authorization'] = `Bearer ${HUGGINGFACE_API_KEY}`;
+          } else if (authAttempt === 1) {
+            delete headers['Authorization'];
+            triedWithoutAuth = true;
+          } else {
+            continue;
+          }
+
+          response = await fetch(url, {
+            method: 'GET',
+            headers
+          });
+
+          if (response.status !== 401) break; // Only try without auth if 401
+        }
+
+        if (!response || !response.ok) {
+          const errorBody = response ? await response.text() : 'No response';
+          if (response && response.status === 500) {
+            throw new Error(`Server error (500) on attempt ${attempt}: ${errorBody}`);
+          }
+          if (response && response.status === 401 && triedWithoutAuth) {
+            throw new Error(
+              `Failed to fetch books: 401 - The dataset may not be accessible via the Hugging Face Datasets Server API. ` +
+              `It may require special permissions, or the Datasets Server may not support this dataset. ` +
+              `Consider using the Python datasets library or downloading the data for local use.`
+            );
+          }
+          throw new Error(`Failed to fetch books: ${response ? response.status : 'no status'} - ${errorBody}`);
+        }
+
+        const responseData = await response.json();
+        debugLog("Raw API response:", responseData);
+
+        // The rows are in responseData.rows, each with a .row property
+        if (!responseData || !Array.isArray(responseData.rows)) {
+          throw new Error(`Invalid response format: ${JSON.stringify(responseData)}`);
+        }
+
+        books = responseData.rows.map((r: any) => {
+          const row = r.row;
+          debugLog("Processing row:", row);
+          
+          // Based on the actual API response, extract title and author from text
+          const text = row.text || '';
+          const lines = text.split('\n');
+          
+          // Look for title in first few lines after "Project Gutenberg eBook"
+          let title = 'Unknown Title';
+          let author = 'Unknown Author';
+          
+          for (let i = 0; i < Math.min(lines.length, 20); i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('Title:')) {
+              title = line.replace('Title:', '').trim();
+            } else if (line.startsWith('Author:')) {
+              author = line.replace('Author:', '').trim();
+            }
+          }
+          
+          return {
+            id: row.id, // This is a string like "41496-8"
+            title,
+            author, 
+            text,
+            subjects: row.subjects || [],
+            bookshelves: row.bookshelves || []
+          };
+        }).filter((book: any) =>
+          book &&
+          typeof book === 'object' &&
+          book.id &&
+          book.text &&
+          book.title !== 'Unknown Title'
+        );
+
+        if (books.length === 0) {
+          throw new Error('No books found in response');
+        }
+
+        debugLog(`Successfully fetched and validated data on attempt ${attempt}`, {
+          totalBooks: books.length,
+          sampleBook: books[0] ? {
+            id: books[0].id,
+            title: books[0].title,
+            author: books[0].author
+          } : null
+        });
+
+        break; // Exit retry loop on success
+      } catch (error) {
+        lastError = error as Error;
+        debugLog(`API request failed on attempt ${attempt}`, {
+          error: error.message,
+          stack: error.stack,
+          attempt,
+          maxRetries: MAX_RETRIES
+        });
+
+        if (attempt < MAX_RETRIES) {
+          const retryDelay = RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
+          debugLog(`Retrying in ${retryDelay}ms...`);
+          await delay(retryDelay);
+          continue;
+        }
+      }
+    }
+
+    // If we exhausted all retries and have no books, throw the last error or return empty array
+    if (books.length === 0) {
+      debugLog("No books from Hugging Face API after all retries");
+      if (lastError) {
+        throw lastError;
+      }
+      return [];
+    }
+
+    // Apply filters
     if (args.author) {
       const authorLower = args.author.toLowerCase();
       books = books.filter(book => book.author && book.author.toLowerCase().includes(authorLower));
     }
+
     if (args.bookshelf) {
       books = books.filter(book => {
         if (!book.bookshelves) return false;
-        return book.bookshelves.some(shelf => 
+        return book.bookshelves.some(shelf =>
           shelf.toLowerCase().includes(args.bookshelf!.toLowerCase())
         );
       });
     }
+
     if (args.subject) {
       books = books.filter(book => {
         if (!book.subjects) return false;
-        return book.subjects.some(subj => 
+        return book.subjects.some(subj =>
           subj.toLowerCase().includes(args.subject!.toLowerCase())
         );
       });
     }
+
     if (args.century) {
-      const range = centuryToYearRange(args.century);
-      if (range) {
-        const centuryNum = Math.floor(range.start / 100) + 1;
-        const yearPrefix = Math.floor(range.start / 100);
+      const centuryNum = parseInt(args.century);
+      if (!isNaN(centuryNum)) {
+        const yearPrefix = centuryNum - 1;
+        const centuryPatterns = [
+          `${centuryNum}th century`,
+          `${yearPrefix}00s`,
+          `${yearPrefix}00's`,
+          `${yearPrefix}00-`
+        ];
         books = books.filter(book => {
-          const centuryPatterns = [
-            `${centuryNum}th century`,
-            `${yearPrefix}00s`,
-            `${range.start}s`,
-            `${yearPrefix}00's`,
-            `${yearPrefix}00-`,
-            `${range.start}-`
-          ];
-          const inSubjects = book.subjects ? book.subjects.some(subj => {
-            const lowerSubj = subj.toLowerCase();
-            return centuryPatterns.some(pattern => lowerSubj.includes(pattern.toLowerCase()));
-          }) : false;
-          const inBookshelves = book.bookshelves ? book.bookshelves.some(shelf => {
-            const lowerShelf = shelf.toLowerCase();
-            return centuryPatterns.some(pattern => lowerShelf.includes(pattern.toLowerCase()));
-          }) : false;
+          const inSubjects = book.subjects?.some(subj =>
+            centuryPatterns.some(pattern =>
+              subj.toLowerCase().includes(pattern.toLowerCase())
+            )
+          ) || false;
+
+          const inBookshelves = book.bookshelves?.some(shelf =>
+            centuryPatterns.some(pattern =>
+              shelf.toLowerCase().includes(pattern.toLowerCase())
+            )
+          ) || false;
+
           return inSubjects || inBookshelves;
         });
       }
     }
-    if (args.excludeIds && args.excludeIds.length > 0) {
+
+    if (args.excludeIds?.length) {
       books = books.filter(book => !args.excludeIds!.includes(book.id));
     }
+
+    // Cache the results
+    datasetCache.set(cacheKey, { data: books, timestamp: now });
+    debugLog("Successfully fetched and filtered books", { count: books.length });
+
     return books;
   } catch (error) {
     console.error("Error searching Gutenberg books:", error);
@@ -228,24 +261,77 @@ export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Prom
 }
 
 /**
- * Gets the best available text content from a HuggingFace book.
+ * Gets a random book from the dataset that matches the criteria
+ */
+export async function getRandomBook(args: SearchGutenbergBooksArgs): Promise<HuggingFaceBook | null> {
+  const books = await searchGutenbergBooks(args);
+  if (books.length === 0) return null;
+  return books[Math.floor(Math.random() * books.length)];
+}
+
+/**
+ * Gets a book by its ID from the dataset
+ */
+export async function getBookById(id: string | number): Promise<HuggingFaceBook | null> {
+  const books = await searchGutenbergBooks({ 
+    limit: 100, // Need larger limit to find specific ID
+    excludeIds: [] 
+  });
+  return books.find(book => book.id === id || book.id.toString() === id.toString()) || null;
+}
+
+/**
+ * Gets the text content of a book
  */
 export function getBookText(book: HuggingFaceBook): string | null {
   return book.text || null;
 }
 
 /**
- * Gets the canonical URL for a Project Gutenberg book.
+ * Uses LLM to enhance search results when needed
  */
-export function getCanonicalGutenbergUrl(book: HuggingFaceBook): string | null {
-  if (!book.id) return null;
-  return `https://www.gutenberg.org/ebooks/${book.id}`;
-}
+export async function enhanceSearchWithLLM(books: HuggingFaceBook[], query: string): Promise<HuggingFaceBook[]> {
+  if (!books || books.length === 0) return [];
 
-/**
- * Fetches the text content of a book.
- */
-export async function fetchBookText(book: HuggingFaceBook): Promise<string> {
-  // The HuggingFace dataset already includes the text content
-  return book.text || "";
+  const messages: OpenRouterMessage[] = [
+    {
+      role: 'system',
+      content: `You are a literary expert. Rank the relevance of books to this search: "${query}". 
+                Return only book IDs in a JSON array, most relevant first. Example: [1234, 5678]`
+    },
+    {
+      role: 'user',
+      content: JSON.stringify(books.map(b => ({ 
+        id: b.id, 
+        title: b.title, 
+        author: b.author,
+        subjects: b.subjects,
+        bookshelves: b.bookshelves
+      })))
+    }
+  ];
+
+  try {
+    const response = await runAgenticLoop(messages, [], 0.2);
+    if (!response) return books;
+
+    const matches = response.match(/\[([\d,\s]+)\]/);
+    if (!matches) return books;
+
+    const rankedIds = matches[1].split(',')
+      .map(id => parseInt(id.trim()))
+      .filter(id => !isNaN(id));
+
+    // Reorder books based on LLM ranking
+    const rankedBooks = [];
+    for (const id of rankedIds) {
+      const book = books.find(b => b.id === id);
+      if (book) rankedBooks.push(book);
+    }
+
+    return rankedBooks.length > 0 ? rankedBooks : books;
+  } catch (error) {
+    debugLog("Error in LLM enhancement", { error });
+    return books;
+  }
 }

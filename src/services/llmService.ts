@@ -1,8 +1,20 @@
 // src/services/llmService.ts
 
-import { debugLog } from '@/utils/debugLog';
 import { getEnvironmentConfig } from '@/utils/environmentConfig';
-// Removed import of searchGutenbergBooks and SearchGutenbergBooksArgs as they are no longer used.
+import { SearchGutenbergBooksArgs } from '@/services/gutenbergTypes';
+
+// Internal logging function to avoid circular dependencies
+function logLLMService(message: string, data?: any): void {
+  const timestamp = new Date().toISOString();
+  console.log(`[LLM Service ${timestamp}] ${message}`);
+  if (data !== undefined) {
+    try {
+      console.log(JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.log('[LLM Service Raw Data]', data);
+    }
+  }
+}
 
 // --- Type Definitions (subset relevant to this service) ---
 export interface OpenRouterMessage {
@@ -44,7 +56,6 @@ export interface ToolDefinition {
 }
 
 // --- Tool Definitions & Mappings (specific to LLM service) ---
-// Tools for Gutenberg search and text fetching are removed as the :online model handles this.
 export const tools: ToolDefinition[] = [
   {
     type: 'function',
@@ -71,7 +82,7 @@ export const tools: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'getBookAuthorInfo',
-      description: 'Fetches a concise, interesting factoid about the author or book, and a validated Project Gutenberg URL for the book title.',
+      description: 'Fetches a concise, interesting factoid about the author or book.',
       parameters: {
         type: 'object',
         properties: {
@@ -82,82 +93,324 @@ export const tools: ToolDefinition[] = [
           author: {
             type: 'string',
             description: 'The author of the book.'
-          },
-          gutenbergId: {
-            type: 'string',
-            description: 'The Project Gutenberg ID of the book (optional, if known).'
           }
         },
         required: ['title', 'author']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_cloze_passage',
+      description: 'Selects a passage from the Project Gutenberg dataset and applies cloze (blanking) logic to create a fill-in-the-blank game. Returns the passage with blanks, the answers, and metadata.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description: 'Bookshelf/category filter (optional)'
+          },
+          author: {
+            type: 'string',
+            description: 'Author filter (optional)'
+          },
+          century: {
+            type: 'string',
+            description: 'Century filter (optional)'
+          },
+          blanks_count: {
+            type: 'integer',
+            description: 'Number of blanks to create in the passage'
+          },
+          difficulty: {
+            type: 'integer',
+            description: 'Passage difficulty (1-5, optional)'
+          }
+        },
+        required: ['blanks_count']
+      }
+    }
   }
 ];
 
-// TOOL_MAPPING is no longer needed if no tools are defined, or will only contain non-Gutenberg tools.
+
+import { fetchGutenbergPassage, PassageData } from '@/main';
+import { chooseRedactions } from '@/services/gameLogic';
+
 export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
   async getWordAnalysis(args: { sentence: string; word: string }): Promise<object> {
     // Compose prompt for the tool call
     const { sentence, word } = args;
-    // For demonstration, just return a dummy analysis. In real use, this would call an API or LLM.
-    // Here, we simulate a call to OpenRouter with function calling.
     return {
       analysis: `The word "${word}" plays a key role in the sentence: "${sentence}". It contributes to the overall meaning by emphasizing its context.`
     };
   },
-  async getBookAuthorInfo(args: { title: string; author: string; gutenbergId?: string }): Promise<object> {
+
+  async get_cloze_passage(args: {
+    category?: string;
+    author?: string;
+    century?: string;
+    blanks_count: number;
+    difficulty?: number;
+  }): Promise<object> {
+    const { category, author, century, blanks_count } = args;
+    try {
+      // Directly fetch data from Hugging Face Datasets API
+      const dataset = "manu/project_gutenberg";
+      const config = "default";
+      const split = "en";
+      const offset = Math.floor(Math.random() * 10000); // Random offset to get different books
+      const length = 1; // Just get one book
+
+      const params = new URLSearchParams({
+        dataset,
+        config,
+        split,
+        offset: offset.toString(),
+        length: length.toString()
+      });
+
+      const url = `https://datasets-server.huggingface.co/rows?${params.toString()}`;
+      
+      // Set up headers
+      let headers: Record<string, string> = { 'Accept': 'application/json' };
+      const { HUGGINGFACE_API_KEY } = getEnvironmentConfig();
+      if (HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY.startsWith('hf_')) {
+        headers['Authorization'] = `Bearer ${HUGGINGFACE_API_KEY}`;
+      }
+
+      logLLMService("Fetching book data from Hugging Face Datasets API", { url });
+      
+      // Make the request
+      const response = await fetch(url, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        // Fall back to static passage if API fails
+        logLLMService("API request failed, using fallback", { status: response.status });
+        return await this.getFallbackClozePassage(blanks_count);
+      }
+
+      const responseData = await response.json();
+      logLLMService("Received data from API", { features: responseData.features, rowCount: responseData.rows?.length });
+
+      // Check if we have valid rows
+      if (!responseData.rows || !Array.isArray(responseData.rows) || responseData.rows.length === 0) {
+        logLLMService("No rows in response, using fallback");
+        return await this.getFallbackClozePassage(blanks_count);
+      }
+
+      // Get the book data from the first row
+      const bookRow = responseData.rows[0].row;
+      
+      if (!bookRow || !bookRow.id || !bookRow.text) {
+        logLLMService("Invalid book data in response, using fallback");
+        return await this.getFallbackClozePassage(blanks_count);
+      }
+
+      // Extract book ID and text
+      const bookId = bookRow.id.toString();
+      const fullText = bookRow.text;
+
+      // Parse book text to extract title, author, and content
+      const titleMatch = fullText.match(/Title: ([^\n]+)/);
+      const authorMatch = fullText.match(/Author: ([^\n]+)/);
+      
+      const title = titleMatch?.[1]?.trim() || "Unknown Title";
+      const author = authorMatch?.[1]?.trim() || "Unknown Author";
+
+      // Extract content by skipping the Gutenberg framing content
+      let content = fullText;
+      
+      // Skip header content
+      const startMarker = "***START OF THE PROJECT GUTENBERG EBOOK";
+      const startIndex = content.indexOf(startMarker);
+      if (startIndex !== -1) {
+        // Skip to the end of the line containing the start marker
+        const lineEndIndex = content.indexOf("\n", startIndex);
+        if (lineEndIndex !== -1) {
+          content = content.substring(lineEndIndex + 1);
+        }
+      }
+
+      // Remove end marker and footer if present
+      const endMarker = "***END OF THE PROJECT GUTENBERG EBOOK";
+      const endIndex = content.indexOf(endMarker);
+      if (endIndex !== -1) {
+        content = content.substring(0, endIndex);
+      }
+
+      // Remove extra whitespace and normalize line endings
+      content = content.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+
+      // Split into paragraphs
+      let paragraphs = content.split(/\n\n+/)
+        .map(p => p.trim())
+        .filter(p => p.length > 100) // Only keep paragraphs with substantial content
+        .slice(1, 4); // Take paragraphs 2-4 (skip the first one, which might be leftover header content)
+
+      if (paragraphs.length === 0) {
+        // If we couldn't extract good paragraphs, use fallback
+        logLLMService("No suitable paragraphs found, using fallback");
+        return await this.getFallbackClozePassage(blanks_count);
+      }
+
+      // 2. Split paragraphs into words
+      const paragraphsWords: string[][] = paragraphs.map(p => p.split(' '));
+      
+      // 3. Distribute blanks
+      let blanksRemaining = blanks_count;
+      const redactedIndices: number[][] = paragraphsWords.map(words => {
+        if (blanksRemaining > 0 && words.length >= 5) {
+          const count = Math.min(blanksRemaining, Math.max(1, Math.floor(blanks_count / paragraphsWords.length)));
+          blanksRemaining -= count;
+          return chooseRedactions(words, count);
+        }
+        return [];
+      });
+
+      // If any blanks remain, add to the first paragraph with enough words
+      if (blanksRemaining > 0) {
+        for (let i = 0; i < paragraphsWords.length; i++) {
+          if (paragraphsWords[i].length >= 5) {
+            const extra = chooseRedactions(paragraphsWords[i], blanksRemaining);
+            redactedIndices[i] = [...redactedIndices[i], ...extra];
+            break;
+          }
+        }
+      }
+
+      // 4. Build the output: paragraphs with blanks, answers array
+      const outputParagraphs: string[] = [];
+      const answers: { paragraphIndex: number; wordIndex: number; answer: string }[] = [];
+      paragraphsWords.forEach((words, pIdx) => {
+        const indices = new Set(redactedIndices[pIdx]);
+        const paraWords = words.map((word, wIdx) => {
+          if (indices.has(wIdx)) {
+            answers.push({ paragraphIndex: pIdx, wordIndex: wIdx, answer: word });
+            // Replace with underscores matching word length
+            return '_'.repeat(word.length);
+          }
+          return word;
+        });
+        outputParagraphs.push(paraWords.join(' '));
+      });
+
+      // Create metadata
+      const metadata = {
+        title,
+        author,
+        id: parseInt(bookId.replace(/\D/g, '')) || 0,
+        canonicalUrl: `https://www.gutenberg.org/ebooks/${bookId.replace(/\D/g, '')}`
+      };
+
+      return {
+        paragraphs: outputParagraphs,
+        answers,
+        metadata
+      };
+    } catch (error) {
+      logLLMService("Error in get_cloze_passage:", error);
+      return await this.getFallbackClozePassage(blanks_count);
+    }
+  },
+
+  // Helper method to get a fallback cloze passage
+  async getFallbackClozePassage(blanksCount: number): Promise<object> {
+    // Define fallback paragraphs based on genres
+    const fallbackTexts = [
+      {
+        title: "Passage from Classic Literature",
+        author: "Various Authors",
+        paragraphs: [
+          "The ability to think clearly and rationally is essential for making good decisions and solving problems effectively. Critical thinking involves analyzing information objectively and making reasoned judgments based on evidence rather than personal bias or emotional reactions.",
+          "Throughout history, literature has served as a mirror reflecting the values, concerns, and aspirations of society. Books allow us to experience different perspectives, fostering empathy and understanding across cultural divides.",
+          "The greatest writers have always understood that language is not merely a tool for communication, but an art form capable of revealing profound truths about the human condition. Their works continue to resonate across generations."
+        ]
+      },
+      {
+        title: "Adventures in Unknown Lands",
+        author: "Exploration Society",
+        paragraphs: [
+          "The intrepid explorer ventured deeper into the uncharted jungle, sweat beading on his brow as he hacked through the dense undergrowth with his machete. Strange bird calls echoed through the canopy above, and the air hung thick with moisture.",
+          "As night fell, he made camp beside a small stream, the gentle gurgling of water over stones providing a soothing counterpoint to the mysterious sounds of the jungle. His maps were worn and faded, but they had served him well thus far.",
+          "In the morning light, the ancient temple revealed itself, stone faces peering out from beneath centuries of vegetation, watching silently as the explorer approached with a mixture of reverence and excitement. This discovery would change everything."
+        ]
+      },
+      {
+        title: "Scientific Enquiry",
+        author: "Research Foundation",
+        paragraphs: [
+          "The laboratory hummed with the soft whirring of centrifuges and the occasional beep of monitoring equipment. Dr. Chen carefully pipetted the clear solution into a series of test tubes, her steady hands reflecting years of practiced precision.",
+          "Scientific discovery has always balanced on the knife-edge between methodical process and creative insight. The greatest breakthroughs often come not from following established protocols, but from questioning fundamental assumptions.",
+          "When the results appeared on the computer screen, the team fell silent. The implications were immediately clear to everyone present - they had finally found the missing piece of the puzzle that had eluded researchers for decades."
+        ]
+      }
+    ];
+
+    // Select a random fallback text
+    const selectedText = fallbackTexts[Math.floor(Math.random() * fallbackTexts.length)];
+    
+    // Split paragraphs into words
+    const paragraphsWords: string[][] = selectedText.paragraphs.map(p => p.split(' '));
+    
+    // Distribute blanks
+    let blanksRemaining = blanksCount;
+    const redactedIndices: number[][] = paragraphsWords.map(words => {
+      if (blanksRemaining > 0 && words.length >= 5) {
+        const count = Math.min(blanksRemaining, Math.max(1, Math.floor(blanksCount / paragraphsWords.length)));
+        blanksRemaining -= count;
+        return chooseRedactions(words, count);
+      }
+      return [];
+    });
+
+    // Build the output
+    const outputParagraphs: string[] = [];
+    const answers: { paragraphIndex: number; wordIndex: number; answer: string }[] = [];
+    paragraphsWords.forEach((words, pIdx) => {
+      const indices = new Set(redactedIndices[pIdx]);
+      const paraWords = words.map((word, wIdx) => {
+        if (indices.has(wIdx)) {
+          answers.push({ paragraphIndex: pIdx, wordIndex: wIdx, answer: word });
+          return '_'.repeat(word.length);
+        }
+        return word;
+      });
+      outputParagraphs.push(paraWords.join(' '));
+    });
+
+    // Create metadata
+    const metadata = {
+      title: selectedText.title,
+      author: selectedText.author,
+      id: 0
+    };
+
+    return {
+      paragraphs: outputParagraphs,
+      answers,
+      metadata
+    };
+  },
+
+  async getBookAuthorInfo(args: { title: string; author: string }): Promise<object> {
     const { title, author } = args;
     let factoid = `Interesting information about "${title}" by ${author}.`;
-    let validatedUrl = '';
 
     try {
-      // STEP 1: First try to find the book in the HuggingFace dataset (more reliable source)
-      const { searchGutenbergBooks } = await import('@/services/gutenbergService');
-      const searchResults = await searchGutenbergBooks({
-        author,
-        limit: 5
-      });
-      
-      // Look for an exact or close match by title
-      const exactMatches = searchResults.filter(book => 
-        book.title.toLowerCase() === title.toLowerCase());
-      const closeMatches = searchResults.filter(book => 
-        book.title.toLowerCase().includes(title.toLowerCase()) ||
-        title.toLowerCase().includes(book.title.toLowerCase()));
-      
-      // Get the best match (exact match first, then close match)
-      const bestMatch = exactMatches[0] || closeMatches[0];
-      
-      if (bestMatch && bestMatch.id) {
-        // We found a reliable ID from the dataset
-        validatedUrl = `https://www.gutenberg.org/ebooks/${bestMatch.id}`;
-        
-        // Validate URL with a HEAD request
-        try {
-          const response = await fetch(validatedUrl, { method: 'HEAD' });
-          if (!response.ok) {
-            validatedUrl = ''; // URL is not valid, clear it
-            debugLog("HuggingFace dataset book URL validation failed:", response.status);
-          } else {
-            debugLog("HuggingFace dataset book URL validated successfully:", validatedUrl);
-          }
-        } catch (error) {
-          validatedUrl = ''; // Error with validation, clear URL
-          debugLog("Error validating HuggingFace dataset book URL:", error);
-        }
-      } else {
-        debugLog("No match found in HuggingFace dataset for:", { title, author });
-      }
-      
-      // STEP 2: Always use LLM for the factoid, regardless of URL success
+      // Generate a factoid using LLM
       const messages: OpenRouterMessage[] = [
         {
           role: 'system',
-          content: `You are a literary expert. Provide a concise, interesting factoid about "${title}" by ${author}. The factoid should be 1-2 sentences, engaging, and relevant to the book or author. DO NOT provide a URL or Gutenberg ID.`
+          content: `You are a literary game assistant. Provide a concise, interesting factoid about "${title}" by ${author}. The factoid should be 2 sentences, engaging, and relevant to the book or author. Focus on historical context, literary significance, or interesting trivia.`
         },
         {
           role: 'user',
-          content: `Please provide a brief, interesting factoid about "${title}" by ${author}.`
+          content: `Please provide a brief, interesting factoid about "${title}" or ${author}.`
         }
       ];
 
@@ -165,87 +418,22 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
       
       if (llmResponse && llmResponse.content) {
         factoid = llmResponse.content.trim();
-        debugLog("Generated factoid:", factoid);
-      }
-      
-      // STEP 3: If we still don't have a validated URL, try getting one from the LLM
-      if (!validatedUrl) {
-        const urlMessages: OpenRouterMessage[] = [
-          {
-            role: 'system',
-            content: `You are an expert at finding validated Project Gutenberg URLs. Find a direct, working URL to "${title}" by ${author} on Project Gutenberg. Respond ONLY with the full, directly accessible URL. If you cannot find an exact and validated URL, respond with "No validated URL found".`
-          },
-          {
-            role: 'user',
-            content: `Find the exact Project Gutenberg URL for "${title}" by ${author}. Provide only the full URL.`
-          }
-        ];
-
-        const urlResponse = await callLLM(urlMessages, [], 0.3);
-        
-        if (urlResponse && urlResponse.content) {
-          const content = urlResponse.content.trim();
-          // Extract URL with regex
-          const urlMatch = content.match(/(https?:\/\/www\.gutenberg\.org\/ebooks\/[0-9]+)/);
-          if (urlMatch && urlMatch[1]) {
-            const candidateUrl = urlMatch[1];
-            
-            // Validate URL with a HEAD request
-            try {
-              const response = await fetch(candidateUrl, { method: 'HEAD' });
-              if (response.ok) {
-                validatedUrl = candidateUrl;
-                debugLog("LLM-provided URL validated successfully:", validatedUrl);
-              } else {
-                debugLog("LLM-provided URL validation failed:", response.status);
-              }
-            } catch (error) {
-              debugLog("Error validating LLM-provided URL:", error);
-            }
-          }
-        }
-      }
-      
-      // STEP 4: If still no URL, try a fallback to Wikipedia
-      if (!validatedUrl) {
-        const wikiMessages: OpenRouterMessage[] = [
-          {
-            role: 'system',
-            content: `You are a search expert. Find the Wikipedia page URL for the book "${title}" by ${author}. If a book-specific page doesn't exist, find the Wikipedia page for the author. Respond ONLY with the full, directly accessible Wikipedia URL. If you cannot find any Wikipedia page, respond with "No Wikipedia URL found".`
-          },
-          {
-            role: 'user',
-            content: `Find the Wikipedia URL for "${title}" by ${author}. Provide only the full URL.`
-          }
-        ];
-
-        const wikiResponse = await callLLM(wikiMessages, [], 0.3);
-        
-        if (wikiResponse && wikiResponse.content) {
-          const content = wikiResponse.content.trim();
-          // Extract URL with regex
-          const urlMatch = content.match(/(https?:\/\/en\.wikipedia\.org\/wiki\/[^"\s]+)/);
-          if (urlMatch && urlMatch[1]) {
-            validatedUrl = urlMatch[1];
-            debugLog("Using Wikipedia URL as fallback:", validatedUrl);
-          }
-        }
+        logLLMService("Generated factoid:", factoid);
       }
     } catch (error) {
       console.error("Error in getBookAuthorInfo:", error);
+      factoid = `"${title}" is a work by ${author} available in the Project Gutenberg collection.`;
     }
 
-    return {
-      factoid,
-      validatedUrl
-    };
-  }
+    return { factoid };
+  },
+  
 };
 
 // For debugging tool calls
 function logToolCall(message: string, data: any): void {
   // Using debugLog for consistency, assuming it's globally available or passed/imported
-  debugLog(`[LLM Service Tool Call] ${message}`, data);
+  logLLMService(`Tool Call: ${message}`, data);
 }
 
 /**
@@ -269,23 +457,24 @@ export async function callLLM(messages: OpenRouterMessage[], currentTools?: Tool
 
   if (temperature !== undefined) {
     body.temperature = temperature;
-    debugLog("LLM Service: Using custom temperature", temperature);
+    logLLMService("Using custom temperature", temperature);
   }
 
   // If tools are provided, add them. Otherwise, the model will rely on web search.
   if (currentTools && currentTools.length > 0) {
     body.tools = currentTools;
     body.tool_choice = 'auto'; // Let the model decide when to use tools
-    debugLog("LLM Service: Using tools", currentTools);
+    logLLMService("Using tools", currentTools);
   } else {
-    debugLog("LLM Service: No specific tools provided, relying on web search via :online model suffix.");
+    logLLMService("No specific tools provided, relying on web search via :online model suffix.");
   }
 
-  debugLog("LLM Service: OpenRouter API Request", JSON.stringify(body, null, 2));
+  logLLMService("OpenRouter API Request", body);
 
   try {
     const apiKey = getEnvironmentConfig().OPENROUTER_API_KEY;
-    debugLog("Using API Key:", apiKey);
+    // logLLMService("Using API Key:", apiKey); // Removed for security: do not log sensitive credentials
+    logLLMService("Using API Key format:", apiKey ? apiKey.substring(0, 8) + "..." : "undefined");
     
     const response = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -314,7 +503,7 @@ export async function callLLM(messages: OpenRouterMessage[], currentTools?: Tool
     }
 
     const data = await response.json();
-    debugLog("LLM Service: OpenRouter API Response", data);
+    logLLMService("OpenRouter API Response", data);
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error("LLM Service: Invalid response structure from OpenRouter:", data);
@@ -400,7 +589,7 @@ export async function runAgenticLoop(initialMessages: OpenRouterMessage[], loopT
   const MAX_ITERATIONS = 5; // Prevent infinite loops
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    debugLog(`LLM Service: Agentic Loop Iteration ${i + 1}`);
+    logLLMService(`Agentic Loop Iteration ${i + 1}`);
     const assistantResponse = await callLLM(messages, loopTools, temperature); // Pass temperature
     messages.push(assistantResponse);
 

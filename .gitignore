@@ -30,3 +30,11 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+scripts/fetch-gutenberg-data.js
+data/gutenberg/default.json
+.clinerules/begin-every-planning-stage.md
+.clinerules/game-logic.md
+.clinerules/macro-audit.md
+.clinerules/game-logic.md
+cline.txt
+src/services/localGutenbergService.ts

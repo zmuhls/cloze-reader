@@ -4,8 +4,7 @@ import { SettingsFooter } from './components/settings/SettingsFooter';
 import { WelcomeOverlay } from './components/welcome/WelcomeOverlay';
 import { apiKeySignal } from './components/settings/ApiConfiguration';
 import { categorySignal, authorSignal, centurySignal } from './components/settings/QueryOptions';
-import { startRound, isDOMElementsInitialized } from './services/gameLogic'; // Import isDOMElementsInitialized
-import { cacheDOMElements } from './main'; // Import cacheDOMElements
+import { startRound, isDOMElementsInitialized, initializeGameDOMElements } from './services/gameLogic'; // Import isDOMElementsInitialized and initializeGameDOMElements
 
 console.log("APP.TSX: Script loading");
 
@@ -155,6 +154,8 @@ const App = () => {
     setShowWelcome(false);
     // Wait for game controls to appear, then initialize
     const requiredSelectors = [
+      "#game-area", // Ensure game-area is also present
+      "#bibliographic-area", // Ensure bibliographic-area is also present
       "#game-controls",
       "#game-controls #hint-btn",
       "#game-controls #submit-btn",
@@ -162,14 +163,38 @@ const App = () => {
       "#result"
     ];
     const checkElements = () => requiredSelectors.every(sel => document.querySelector(sel));
+    
     const tryInit = () => {
-      cacheDOMElements();
-      startGameRound(true);
+      // Query for elements again to ensure we have the latest references
+      const gameArea = document.getElementById('game-area');
+      const bibliographicArea = document.getElementById('bibliographic-area');
+      const gameControls = document.getElementById('game-controls');
+      const hintBtn = gameControls?.querySelector('#hint-btn') as HTMLButtonElement | null;
+      const submitBtn = gameControls?.querySelector('#submit-btn') as HTMLButtonElement | null;
+      const roundInfo = document.getElementById('round-info');
+      const resultArea = document.getElementById('result');
+
+      if (gameArea && bibliographicArea && hintBtn && submitBtn && roundInfo && resultArea) {
+        initializeGameDOMElements({
+          gameArea,
+          bibliographicArea,
+          hintBtn,
+          submitBtn,
+          roundInfo,
+          resultArea
+        });
+        startGameRound(true);
+      } else {
+        console.error("APP.TSX: Not all required DOM elements found for initialization after welcome dismiss.");
+        // Optionally, display an error to the user here
+      }
     };
+
     if (checkElements()) {
       tryInit();
       return;
     }
+    
     const observer = new MutationObserver(() => {
       if (checkElements()) {
         observer.disconnect();
