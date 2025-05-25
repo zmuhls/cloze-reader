@@ -82,22 +82,36 @@ export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Prom
         let response: Response | null = null;
         let triedWithoutAuth = false;
 
-        for (let authAttempt = 0; authAttempt < 2; authAttempt++) {
-          if (authAttempt === 0 && HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY.startsWith('hf_')) {
-            headers['Authorization'] = `Bearer ${HUGGINGFACE_API_KEY}`;
-          } else if (authAttempt === 1) {
-            delete headers['Authorization'];
-            triedWithoutAuth = true;
-          } else {
-            continue;
-          }
-
+        // First try with API key if available
+        if (HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY.startsWith('hf_')) {
+          headers['Authorization'] = `Bearer ${HUGGINGFACE_API_KEY}`;
+          console.log("Using Hugging Face API key for authentication");
+          
           response = await fetch(url, {
             method: 'GET',
             headers
           });
-
-          if (response.status !== 401) break; // Only try without auth if 401
+          
+          // If we get a 401, we'll try again without auth
+          if (response.status === 401) {
+            console.log("Authentication failed with API key, trying without authentication");
+            delete headers['Authorization'];
+            triedWithoutAuth = true;
+            
+            response = await fetch(url, {
+              method: 'GET',
+              headers
+            });
+          }
+        } else {
+          // No valid API key, try without authentication
+          console.log("No valid Hugging Face API key found, trying without authentication");
+          triedWithoutAuth = true;
+          
+          response = await fetch(url, {
+            method: 'GET',
+            headers
+          });
         }
 
         if (!response || !response.ok) {
@@ -108,13 +122,24 @@ export async function searchGutenbergBooks(args: SearchGutenbergBooksArgs): Prom
             throw new ApiError(`Server error (500) on attempt ${attempt}`, 500, url);
           }
           
-          if (status === 401 && triedWithoutAuth) {
-            throw new ApiError(
-              `The dataset may not be accessible via the Hugging Face Datasets Server API. ` +
-              `It may require special permissions, or the Datasets Server may not support this dataset.`,
-              401,
-              url
-            );
+          if (status === 401) {
+            if (triedWithoutAuth) {
+              console.error("Authentication failed even without API key. The dataset may require special permissions.");
+              throw new ApiError(
+                `The dataset may not be accessible via the Hugging Face Datasets Server API. ` +
+                `It may require special permissions, or the Datasets Server may not support this dataset.`,
+                401,
+                url
+              );
+            } else {
+              console.error("Authentication failed with API key. The API key may be invalid or expired.");
+              throw new ApiError(
+                `Authentication failed with the provided Hugging Face API key. ` +
+                `The key may be invalid, expired, or not have the necessary permissions.`,
+                401,
+                url
+              );
+            }
           }
           
           throw new ApiError(`Failed to fetch books: ${errorBody}`, status, url);

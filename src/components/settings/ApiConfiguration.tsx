@@ -30,6 +30,53 @@ function isValidApiKey(key: string, type: 'openrouter' | 'huggingface'): boolean
 }
 
 /**
+ * Tests a Hugging Face API key by making a simple request to the API
+ * @param key The API key to test
+ * @returns A promise that resolves to an object with success and message properties
+ */
+async function testHuggingFaceApiKey(key: string): Promise<{success: boolean, message: string}> {
+  if (!isValidApiKey(key, 'huggingface')) {
+    return {
+      success: false,
+      message: 'Invalid API key format. Hugging Face API keys should start with "hf_" and be at least 20 characters long.'
+    };
+  }
+  
+  try {
+    // Make a simple request to the Hugging Face API to test the key
+    const response = await fetch('https://datasets-server.huggingface.co/rows?dataset=manu/project_gutenberg&config=default&split=en&offset=0&length=1', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${key}`
+      }
+    });
+    
+    if (response.ok) {
+      return {
+        success: true,
+        message: 'API key is valid and working correctly!'
+      };
+    } else if (response.status === 401) {
+      return {
+        success: false,
+        message: 'Authentication failed. The API key is invalid or has expired.'
+      };
+    } else {
+      return {
+        success: false,
+        message: `API test failed with status ${response.status}. The key may not have the necessary permissions.`
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: `Error testing API key: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
+/**
  * Props for the ApiConfiguration component.
  */
 interface ApiConfigurationProps {
@@ -47,7 +94,7 @@ export const ApiConfiguration: FunctionComponent<ApiConfigurationProps> = ({
   const [openRouterKey, setOpenRouterKey] = useState(openRouterKeySignal.value);
   const [huggingFaceKey, setHuggingFaceKey] = useState(huggingFaceKeySignal.value);
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState<'success' | 'error' | 'info' | ''>('');
+  const [messageType, setMessageType] = useState<'success' | 'error' | 'info' | 'warn' | ''>('');
 
   // Effect to ensure the input fields and signals reflect the latest from localStorage
   useEffect(() => {
@@ -78,31 +125,49 @@ export const ApiConfiguration: FunctionComponent<ApiConfigurationProps> = ({
    * @param type The type of API key being saved
    * @param key The API key value to save
    */
-  const handleSave = (type: 'openrouter' | 'huggingface', key: string) => {
+  const handleSave = async (type: 'openrouter' | 'huggingface', key: string) => {
+    // First check if the key format is valid
     const isValid = setUserApiKey(key, type);
     
     if (isValid) {
       const config = getEnvironmentConfig();
       if (type === 'openrouter') {
         openRouterKeySignal.value = config.OPENROUTER_API_KEY;
+        setMessageType('success');
+        setMessage(`OpenRouter API key saved successfully!`);
       } else {
+        // For Hugging Face, we'll test the key before confirming success
         huggingFaceKeySignal.value = config.HUGGINGFACE_API_KEY;
+        
+        setMessageType('info');
+        setMessage(`Hugging Face API key saved. Testing connection...`);
+        
+        // Test the Hugging Face API key
+        const testResult = await testHuggingFaceApiKey(key);
+        
+        if (testResult.success) {
+          setMessageType('success');
+          setMessage(`Hugging Face API key saved and verified successfully!`);
+        } else {
+          setMessageType('warn');
+          setMessage(`Hugging Face API key saved, but note: ${testResult.message}`);
+        }
       }
-      
-      setMessageType('success');
-      setMessage(`${type === 'openrouter' ? 'OpenRouter' : 'Hugging Face'} API key saved successfully!`);
     } else {
       setMessageType('error');
       setMessage(`Please enter a valid ${type === 'openrouter' ? 'OpenRouter (sk-or-)' : 'Hugging Face (hf_)'} API key`);
     }
     
-    setTimeout(() => setMessage(''), 3000);
+    // Keep the message visible longer for important notifications
+    const timeout = messageType === 'error' || messageType === 'warn' ? 5000 : 3000;
+    setTimeout(() => setMessage(''), timeout);
   };
 
-  const messageClass = 
-    messageType === 'success' ? 'text-green-600' : 
-    messageType === 'error' ? 'text-red-600' : 
-    messageType === 'info' ? 'text-blue-600' : '';
+  const messageClass =
+      messageType === 'success' ? 'text-green-600' :
+      messageType === 'error' ? 'text-red-600' :
+      messageType === 'warn' ? 'text-amber-600' :
+      messageType === 'info' ? 'text-blue-600' : '';
 
   // When running in a remote interface, don't show the API key input UI
   if (isRemoteInterface) {
@@ -122,6 +187,20 @@ export const ApiConfiguration: FunctionComponent<ApiConfigurationProps> = ({
         <span>
           <strong>Security Notice:</strong> API keys entered here are stored in your browser and may be visible in browser developer tools or network logs. <br />
           <span className="font-semibold">Do not reuse API keys from other projects or accounts.</span> Use a dedicated key for this app only.
+        </span>
+      </div>
+      
+      {/* API Key Information */}
+      <div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 rounded text-blue-900 flex items-start gap-2">
+        <svg className="w-5 h-5 mt-0.5 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01" />
+        </svg>
+        <span>
+          <strong>API Key Information:</strong><br />
+          • To use the Hugging Face Datasets API, you need a valid API key from <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">huggingface.co/settings/tokens</a><br />
+          • The key must start with "hf_" and have the necessary permissions to access datasets<br />
+          • Without a valid key, some features may not work correctly
         </span>
       </div>
 

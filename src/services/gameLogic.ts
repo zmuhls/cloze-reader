@@ -849,6 +849,12 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
         willTryFallback: true
       }
     );
+    
+    // Add more detailed logging for debugging
+    console.error("Error details from get_cloze_passage:", error);
+    if (error instanceof Error && error.message.includes('401')) {
+      console.error("Authentication error detected with Hugging Face API. Check your API key configuration.");
+    }
 
     // Try using the main fetchGutenbergPassage function as backup
     try {
@@ -944,27 +950,76 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
         return passageData;
       }
     } catch (fetchError) {
+      console.error("Fallback fetchGutenbergPassage also failed:", fetchError);
       handleApiError(
         fetchError,
         "fetchGutenbergPassage",
         undefined
       );
+      
+      // Add more detailed error information
+      if (fetchError instanceof Error && fetchError.message.includes('401')) {
+        console.error("Authentication error in fallback mechanism. The application will try to use static content.");
+      }
     }
   }
 
   // If we still don't have a passage, show a fallback
   if (gameArea) {
     // Use our formatErrorForUser function to get a user-friendly error message
-    const errorMessage = formatErrorForUser(new ApiError("Failed to fetch a passage", 0, "get_cloze_passage"));
+    let errorMessage = formatErrorForUser(new ApiError("Failed to fetch a passage", 0, "get_cloze_passage"));
     
-    gameArea.innerHTML = `
-      <div class="text-center p-4">
-        <p class="text-lg text-red-500">${errorMessage}</p>
-        <button id="retry-fetch-btn" class="mt-4 px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon">
-          Retry
-        </button>
-      </div>
-    `;
+    // Add more specific error information if available
+    if (gameArea) {
+      // Check if it's likely an authentication issue
+      const isAuthError = console.error.toString().includes('401') || console.error.toString().includes('authentication');
+      
+      if (isAuthError) {
+        errorMessage = "Authentication failed with the Hugging Face API. Please check your API key in the settings.";
+        
+        gameArea.innerHTML = `
+          <div class="text-center p-4">
+            <p class="text-lg text-red-500">${errorMessage}</p>
+            <p class="text-md mt-2">This may be because:</p>
+            <ul class="text-left list-disc pl-8 mt-2 mb-4">
+              <li>Your Hugging Face API key is missing or invalid</li>
+              <li>The API key doesn't have the necessary permissions</li>
+              <li>The Hugging Face Datasets API is temporarily unavailable</li>
+            </ul>
+            <div class="flex justify-center gap-4">
+              <button id="retry-fetch-btn" class="px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon">
+                Retry
+              </button>
+              <button id="open-settings-btn" class="px-4 py-2 bg-typewriter-ink text-aged-paper rounded hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon">
+                Open Settings
+              </button>
+            </div>
+          </div>
+        `;
+        
+        // Add event listener for the settings button
+        const settingsBtn = document.getElementById('open-settings-btn');
+        if (settingsBtn) {
+          settingsBtn.addEventListener('click', () => {
+            // Trigger the settings dialog
+            const settingsButton = document.getElementById('settings-btn');
+            if (settingsButton) {
+              settingsButton.click();
+            }
+          });
+        }
+      } else {
+        // Generic error
+        gameArea.innerHTML = `
+          <div class="text-center p-4">
+            <p class="text-lg text-red-500">${errorMessage}</p>
+            <button id="retry-fetch-btn" class="mt-4 px-4 py-2 bg-aged-paper-dark text-typewriter-ink rounded hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon">
+              Retry
+            </button>
+          </div>
+        `;
+      }
+    }
     
     // Add retry button functionality
     const retryBtn = document.getElementById('retry-fetch-btn');

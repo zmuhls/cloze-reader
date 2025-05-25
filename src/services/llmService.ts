@@ -184,8 +184,23 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
       // Set up headers
       let headers: Record<string, string> = { 'Accept': 'application/json' };
       const { HUGGINGFACE_API_KEY } = getEnvironmentConfig();
+      
+      // Log API key format for debugging (without revealing the full key)
+      if (HUGGINGFACE_API_KEY) {
+        logLLMService("API Key format check:", {
+          startsWithHf: HUGGINGFACE_API_KEY.startsWith('hf_'),
+          length: HUGGINGFACE_API_KEY.length,
+          prefix: HUGGINGFACE_API_KEY.substring(0, 3) + '...'
+        });
+      } else {
+        logLLMService("No Hugging Face API key found in environment config");
+      }
+      
       if (HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY.startsWith('hf_')) {
         headers['Authorization'] = `Bearer ${HUGGINGFACE_API_KEY}`;
+        logLLMService("Using authentication with Hugging Face API");
+      } else {
+        logLLMService("No valid API key, attempting to access Hugging Face API without authentication");
       }
 
       logLLMService("Fetching book data from Hugging Face Datasets API", { url });
@@ -197,8 +212,22 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
       });
 
       if (!response.ok) {
-        // Don't fall back to fake content - throw error to force real Gutenberg content
-        throw new Error(`Hugging Face API failed with status ${response.status}`);
+        // Provide more detailed error information
+        if (response.status === 401) {
+          logLLMService("Authentication failed with Hugging Face API", {
+            status: response.status,
+            usingAuth: !!headers['Authorization']
+          });
+          
+          if (headers['Authorization']) {
+            throw new Error(`Hugging Face API authentication failed with status 401. The API key may be invalid or expired.`);
+          } else {
+            throw new Error(`Hugging Face API requires authentication (status 401). No valid API key was provided.`);
+          }
+        } else {
+          // Other error types
+          throw new Error(`Hugging Face API failed with status ${response.status}`);
+        }
       }
 
       const responseData = await response.json();
@@ -317,7 +346,22 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
       };
     } catch (error) {
       logLLMService("Error in get_cloze_passage:", error);
-      throw error; // Don't fall back to fake content, let the calling code handle it
+      
+      // Provide more context about the error
+      if (error instanceof Error) {
+        if (error.message.includes('401')) {
+          logLLMService("Authentication error detected, will try fallback mechanism");
+          // Instead of throwing, try to use the fallback mechanism
+          try {
+            return await this.getFallbackClozePassage(args.blanks_count);
+          } catch (fallbackError) {
+            logLLMService("Fallback mechanism also failed:", fallbackError);
+            throw new Error(`Failed to get passage: ${error.message}. Fallback also failed.`);
+          }
+        }
+      }
+      
+      throw error; // For other errors, let the calling code handle it
     }
   },
 
