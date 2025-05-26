@@ -368,7 +368,7 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
           continue;
         }
 
-        // Extract paragraphs using the function from gutenbergService with difficulty
+        // Extract paragraphs using the function from gutenbergService with difficultEnsure the y
         const paragraphs = extractParagraphsFromMiddle(bookText, difficulty);
         if (!paragraphs || paragraphs.length === 0) {
           logLLMService("Failed to extract paragraphs, trying next", { id: selectedBook.id });

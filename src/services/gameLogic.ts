@@ -208,6 +208,7 @@ export let hintsRemaining = parseInt(localStorage.getItem('hintsRemaining') || '
 export let hintedBlanks: Set<string> = new Set(JSON.parse(localStorage.getItem('hintedBlanks') || '[]'));
 export let hintContents: Record<string, string> = {}; // Stores hint text for each blank
 export let previousBooks: { title: string; author: string; id: number }[] = JSON.parse(localStorage.getItem('previousBooks') || '[]');
+export let currentPassageMetadata: { title: string; author: string; id?: number; factoid?: string } | null = null; // Store current passage metadata
 
 // --- DOM Element References ---
 // These will be initialized by a function called from main.ts or passed as arguments.
@@ -679,37 +680,17 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
     debugLog("Serving passage from cache", { cacheKey });
 
       if (bibliographicArea && passageData.metadata) {
-        let authorDisplayHTML = passageData.metadata.author; // Default to plain author name
-        let factoidDisplayHTML = ''; // Default to no factoid
+        // Store metadata globally for later use in analysis
+        currentPassageMetadata = {
+          title: passageData.metadata.title,
+          author: passageData.metadata.author,
+          id: passageData.metadata.id
+        };
 
-        try {
-          // Call getBookAuthorInfo tool
-          const factoidResult = await TOOL_MAPPING.getBookAuthorInfo({
-            title: passageData.metadata.title,
-            author: passageData.metadata.author
-          }) as { factoid: string };
-
-          debugLog("Tool results:", { factoidResult });
-
-          // Handle factoid result
-          if (factoidResult && factoidResult.factoid) {
-            passageData.metadata.factoid = factoidResult.factoid; // Store for consistency
-            factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
-          }
-        } catch (error) {
-          handleApiError(
-            error,
-            "TOOL_MAPPING.getBookAuthorInfo",
-            undefined // No fallback, just log and continue
-          );
-          // authorDisplayHTML will remain plain text, factoidDisplayHTML will be empty
-        }
-
-        // Construct the final HTML for the bibliographic area
+        // Construct the final HTML for the bibliographic area (without factoid initially)
         const biblioHTML = `
           <h2 class="text-xl font-semibold mb-2 typewriter-text">${passageData.metadata.title}</h2>
-          <p class="typewriter-text">By ${authorDisplayHTML}</p>
-          ${factoidDisplayHTML}
+          <p class="typewriter-text">By ${passageData.metadata.author}</p>
         `;
         bibliographicArea.innerHTML = biblioHTML;
 
@@ -792,37 +773,17 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
 
       // Display the metadata
       if (bibliographicArea && clozeResult.metadata) {
-        let authorDisplayHTML = clozeResult.metadata.author; // Default to plain author name
-        let factoidDisplayHTML = ''; // Default to no factoid
+        // Store metadata globally for later use in analysis
+        currentPassageMetadata = {
+          title: clozeResult.metadata.title,
+          author: clozeResult.metadata.author,
+          id: clozeResult.metadata.id
+        };
 
-        try {
-          // Call getBookAuthorInfo tool
-          const factoidResult = await TOOL_MAPPING.getBookAuthorInfo({
-            title: clozeResult.metadata.title,
-            author: clozeResult.metadata.author
-          }) as { factoid: string };
-
-          debugLog("Tool results for newly fetched passage:", { factoidResult });
-
-          // Handle factoid result
-          if (factoidResult && factoidResult.factoid) {
-            clozeResult.metadata.factoid = factoidResult.factoid; // Store for consistency
-            factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
-          }
-        } catch (error) {
-          handleApiError(
-            error,
-            "TOOL_MAPPING.getBookAuthorInfo",
-            undefined // No fallback, just log and continue
-          );
-          // authorDisplayHTML will remain plain text, factoidDisplayHTML will be empty
-        }
-
-        // Construct the final HTML for the bibliographic area
+        // Construct the final HTML for the bibliographic area (without factoid initially)
         const biblioHTML = `
           <h2 class="text-xl font-semibold mb-2 typewriter-text">${clozeResult.metadata.title}</h2>
-          <p class="typewriter-text">By ${authorDisplayHTML}</p>
-          ${factoidDisplayHTML}
+          <p class="typewriter-text">By ${clozeResult.metadata.author}</p>
         `;
         bibliographicArea.innerHTML = biblioHTML;
 
@@ -910,27 +871,16 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
 
         // Display the metadata
         if (bibliographicArea && passageData.metadata) {
-          let authorDisplayHTML = passageData.metadata.author;
-          let factoidDisplayHTML = '';
-
-          try {
-            const factoidResult = await TOOL_MAPPING.getBookAuthorInfo({
-              title: passageData.metadata.title,
-              author: passageData.metadata.author
-            }) as { factoid: string };
-
-            if (factoidResult && factoidResult.factoid) {
-              passageData.metadata.factoid = factoidResult.factoid;
-              factoidDisplayHTML = `<p class="typewriter-text text-sm mt-1 italic">${factoidResult.factoid}</p>`;
-            }
-          } catch (error) {
-            // Continue without factoid if this fails
-          }
+          // Store metadata globally for later use in analysis
+          currentPassageMetadata = {
+            title: passageData.metadata.title,
+            author: passageData.metadata.author,
+            id: passageData.metadata.id
+          };
 
           const biblioHTML = `
             <h2 class="text-xl font-semibold mb-2 typewriter-text">${passageData.metadata.title}</h2>
-            <p class="typewriter-text">By ${authorDisplayHTML}</p>
-            ${factoidDisplayHTML}
+            <p class="typewriter-text">By ${passageData.metadata.author}</p>
           `;
           bibliographicArea.innerHTML = biblioHTML;
 
@@ -1221,22 +1171,61 @@ export async function showAnalysis() {
 
   try {
     // Get the current passage metadata
-    const bibliographicArea = document.getElementById('bibliographic-area');
     let title = 'Unknown Title';
     let author = 'Unknown Author';
     let factoid = '';
 
-    if (bibliographicArea) {
-      const titleElement = bibliographicArea.querySelector('h2');
-      const authorElement = bibliographicArea.querySelector('p');
-      const factoidElement = bibliographicArea.querySelector('p.italic');
-      
-      if (titleElement) title = titleElement.textContent || title;
-      if (authorElement) {
-        const authorText = authorElement.textContent || '';
-        author = authorText.replace('By ', '').trim() || author;
+    // Use stored metadata if available
+    if (currentPassageMetadata) {
+      title = currentPassageMetadata.title;
+      author = currentPassageMetadata.author;
+      factoid = currentPassageMetadata.factoid || '';
+    } else {
+      // Fallback to reading from DOM
+      const bibliographicArea = document.getElementById('bibliographic-area');
+      if (bibliographicArea) {
+        const titleElement = bibliographicArea.querySelector('h2');
+        const authorElement = bibliographicArea.querySelector('p');
+        
+        if (titleElement) title = titleElement.textContent || title;
+        if (authorElement) {
+          const authorText = authorElement.textContent || '';
+          author = authorText.replace('By ', '').trim() || author;
+        }
       }
-      if (factoidElement) factoid = factoidElement.textContent || '';
+    }
+
+    // Generate factoid only after the first round and if not already available
+    if (round > 1 && !factoid && currentPassageMetadata) {
+      try {
+        analysisContainer.innerHTML = `
+          <h3 class="text-lg font-semibold mb-3 typewriter-text">Analysis</h3>
+          <p class="typewriter-text text-sm">Generating factoid... <span class="animate-pulse">⚡</span></p>
+        `;
+
+        const factoidResult = await TOOL_MAPPING.getBookAuthorInfo({
+          title: title,
+          author: author
+        }) as { factoid: string };
+
+        if (factoidResult && factoidResult.factoid) {
+          factoid = factoidResult.factoid;
+          // Store the factoid for future use
+          currentPassageMetadata.factoid = factoid;
+          
+          // Update the bibliographic area to include the factoid with typewriter effect
+          const bibliographicArea = document.getElementById('bibliographic-area');
+          if (bibliographicArea) {
+            const factoidElement = document.createElement('p');
+            factoidElement.className = 'typewriter-text text-sm mt-1 italic';
+            factoidElement.textContent = factoid;
+            bibliographicArea.appendChild(factoidElement);
+          }
+        }
+      } catch (error) {
+        console.error('Error generating factoid:', error);
+        // Continue without factoid
+      }
     }
 
     // Get the redacted words
