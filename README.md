@@ -16,12 +16,10 @@ The game utilizes  tool calling capabilities with OpenRouter to:
 
 This project is deployed on GitHub Pages with automated CI/CD via GitHub Actions.
 
-### **Live Demo**: [Cloze Reader Game](https://your-username.github.io/cloze-reader)
-
 ### **Local Dataset Features**
 - **50+ curated books** from Project Gutenberg in `src/assets/datasets/`
 - **Genre-specific collections**: Fiction, Poetry, General Literature
-- **Quality-filtered content** with educational metadata
+- **Quality-filtered content** with metadata
 - **Offline-capable** gameplay with local content processing
 
 ## How to Play
