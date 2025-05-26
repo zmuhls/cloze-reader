@@ -110,7 +110,7 @@ export const tools: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'get_cloze_passage',
-      description: 'Selects a passage from the Project Gutenberg dataset and applies cloze (blanking) logic to create a fill-in-the-blank game. Returns the passage with blanks, the answers, and metadata.',
+      description: 'Intelligently selects and processes a passage from the Project Gutenberg dataset with difficulty-aware sampling. Level 1: Simple, modern prose with common vocabulary. Level 2: Slightly more complex sentences. Level 3: Moderate complexity with varied sentence structures. Level 4: Advanced vocabulary and longer sentences. Level 5: Complex literary passages with sophisticated language. Returns the passage with strategically placed blanks based on difficulty.',
       parameters: {
         type: 'object',
         properties: {
@@ -132,7 +132,7 @@ export const tools: ToolDefinition[] = [
           },
           difficulty: {
             type: 'integer',
-            description: 'Passage difficulty (1-5, optional)'
+            description: 'Passage difficulty level (1-5): 1=Elementary (simple words, short sentences), 2=Basic (moderate vocabulary), 3=Intermediate (varied complexity), 4=Advanced (sophisticated vocabulary), 5=Expert (complex literary language)'
           }
         },
         required: ['blanks_count']
@@ -145,6 +145,134 @@ export const tools: ToolDefinition[] = [
 import { fetchGutenbergPassage } from '@/main';
 import { PassageData } from '@/services/gutenbergService';
 import { chooseRedactions } from '@/services/gameLogic';
+
+/**
+ * Difficulty-aware word selection for cloze blanks
+ */
+function chooseRedactionsWithDifficulty(words: string[], count: number, difficulty: number): number[] {
+  if (words.length === 0 || count === 0) return [];
+
+  const functionWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'if', 'of', 'at', 'by', 'for', 'with', 'about',
+    'to', 'from', 'in', 'on', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have',
+    'has', 'had', 'do', 'does', 'did', 'will', 'would', 'shall', 'should', 'can', 'could',
+    'may', 'might', 'must', 'that', 'which', 'who', 'whom', 'whose', 'this', 'these',
+    'those', 'am', 'i', 'we', 'you', 'he', 'she', 'they', 'it'
+  ]);
+
+  const commonWords = new Set([
+    'said', 'get', 'make', 'go', 'know', 'take', 'see', 'come', 'think', 'look', 'want',
+    'give', 'use', 'find', 'tell', 'ask', 'work', 'seem', 'feel', 'try', 'leave', 'call'
+  ]);
+
+  interface ScoredWord {
+    index: number;
+    score: number;
+    word: string;
+    difficulty: number;
+  }
+
+  const scoredWords: ScoredWord[] = words.map((word, index) => {
+    if (!word || word.length === 0) {
+      return { index, score: -100, word, difficulty: 0 };
+    }
+    
+    const cleanWord = word.replace(/[.,!?;:]+$/, '').toLowerCase().replace(/[^\w]/g, '');
+    
+    let score = 0;
+    let wordDifficulty = 1;
+    
+    // Base scoring
+    score += cleanWord.length * 2;
+    
+    // Function word penalty
+    if (functionWords.has(cleanWord)) {
+      score -= 15;
+      wordDifficulty = 1;
+    } else if (commonWords.has(cleanWord)) {
+      score -= 5;
+      wordDifficulty = 2;
+    } else {
+      // Assess word difficulty
+      if (cleanWord.length >= 8) wordDifficulty += 1;
+      if (cleanWord.length >= 12) wordDifficulty += 1;
+      if (/[aeiou]{2,}/.test(cleanWord)) wordDifficulty += 1; // Complex vowel patterns
+      if (cleanWord.includes('tion') || cleanWord.includes('sion')) wordDifficulty += 1;
+    }
+    
+    // Adjust score based on target difficulty vs word difficulty
+    const difficultyMatch = Math.abs(difficulty - wordDifficulty);
+    if (difficultyMatch === 0) {
+      score += 20; // Perfect difficulty match
+    } else if (difficultyMatch === 1) {
+      score += 10; // Close match
+    } else if (difficultyMatch > 2) {
+      score -= 10; // Poor match
+    }
+    
+    // Difficulty-specific adjustments
+    if (difficulty <= 2) {
+      // Easy levels: prefer shorter, common words
+      if (cleanWord.length <= 6) score += 10;
+      if (cleanWord.length > 10) score -= 15;
+    } else if (difficulty >= 4) {
+      // Hard levels: prefer longer, complex words
+      if (cleanWord.length >= 8) score += 10;
+      if (cleanWord.length < 5) score -= 10;
+    }
+    
+    // Proper noun detection and handling
+    const isCapitalized = word[0] === word[0].toUpperCase() && word[0].match(/[A-Z]/);
+    const isProbablySentenceStart = index === 0 || 
+        (index > 0 && words[index-1] && words[index-1].match(/[.!?]\s*$/));
+    
+    if (isCapitalized && !isProbablySentenceStart) {
+      if (difficulty <= 2) {
+        score -= 20; // Avoid proper nouns in easy levels
+      } else {
+        score -= 10; // Less penalty for hard levels
+      }
+    }
+    
+    score += Math.random() * 3;
+    return { index, score, word, difficulty: wordDifficulty };
+  })
+  .filter(scoredWord => {
+    const word = scoredWord.word;
+    if (!word || word.length === 0) return false;
+    
+    const cleanWord = word.replace(/[.,!?;:]+$/, '');
+    const hasNonLatinChars = /[^\u0000-\u007F\u0080-\u00FF\u0100-\u017F\u0180-\u024F]/.test(cleanWord);
+    
+    return !hasNonLatinChars && !/[—–]/.test(cleanWord) && cleanWord.length >= 3;
+  });
+
+  scoredWords.sort((a, b) => b.score - a.score);
+
+  const actualCount = Math.min(count, scoredWords.length);
+  const candidatePoolSize = Math.min(actualCount * 3, scoredWords.length);
+  const topCandidates = scoredWords.slice(0, candidatePoolSize);
+
+  const indices: number[] = [];
+  
+  while (indices.length < actualCount && topCandidates.length > 0) {
+    const randomIndex = Math.floor(Math.random() * topCandidates.length);
+    const selectedWord = topCandidates.splice(randomIndex, 1)[0];
+    const selectedIndex = selectedWord.index;
+    
+    const isAdjacent = indices.some(existingIndex => 
+      Math.abs(existingIndex - selectedIndex) <= 1
+    );
+    
+    if (!isAdjacent || indices.length === 0) {
+      indices.push(selectedIndex);
+    } else if (topCandidates.length === 0 && indices.length < actualCount) {
+      indices.push(selectedIndex);
+    }
+  }
+
+  return indices.sort((a, b) => a - b);
+}
 
 export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
   async getWordAnalysis(args: { sentence: string; word: string }): Promise<object> {
@@ -162,206 +290,206 @@ export const TOOL_MAPPING: Record<string, (args: any) => Promise<object>> = {
     blanks_count: number;
     difficulty?: number;
   }): Promise<object> {
-    const { category, author, century, blanks_count } = args;
+    const { category, author, century, blanks_count, difficulty = 1 } = args;
     try {
-      // Directly fetch data from Hugging Face Datasets API
-      const dataset = "manu/project_gutenberg";
-      const config = "default";
-      const split = "en";
-      const offset = Math.floor(Math.random() * 10000); // Random offset to get different books
-      const length = 1; // Just get one book
-
-      const params = new URLSearchParams({
-        dataset,
-        config,
-        split,
-        offset: offset.toString(),
-        length: length.toString()
+      logLLMService("Getting cloze passage from local datasets with difficulty-aware selection", args);
+      
+      // Define difficulty-specific selection criteria
+      const difficultyGuidelines = {
+        1: { // Elementary
+          maxSentenceLength: 15,
+          preferredWordLength: [3, 8],
+          complexityPreference: 'simple',
+          vocabularyLevel: 'common'
+        },
+        2: { // Basic
+          maxSentenceLength: 18,
+          preferredWordLength: [4, 10],
+          complexityPreference: 'moderate-simple',
+          vocabularyLevel: 'everyday'
+        },
+        3: { // Intermediate
+          maxSentenceLength: 22,
+          preferredWordLength: [4, 12],
+          complexityPreference: 'moderate',
+          vocabularyLevel: 'varied'
+        },
+        4: { // Advanced
+          maxSentenceLength: 28,
+          preferredWordLength: [5, 15],
+          complexityPreference: 'complex',
+          vocabularyLevel: 'sophisticated'
+        },
+        5: { // Expert
+          maxSentenceLength: 35,
+          preferredWordLength: [6, 18],
+          complexityPreference: 'very-complex',
+          vocabularyLevel: 'literary'
+        }
+      };
+      
+      const guidelines = difficultyGuidelines[Math.min(5, Math.max(1, difficulty)) as keyof typeof difficultyGuidelines];
+      logLLMService(`Using difficulty ${difficulty} guidelines:`, guidelines);
+      
+      // Use local dataset search instead of external API calls
+      const { searchGutenbergBooks, extractParagraphsFromMiddle, getBookText } = await import('@/services/gutenbergService');
+      
+      // Search for books using local datasets
+      const books = await searchGutenbergBooks({
+        bookshelf: category,
+        author: author,
+        century: century,
+        limit: 50, // Get more options for random selection
+        language: 'en'
       });
 
-      const url = `https://datasets-server.huggingface.co/rows?${params.toString()}`;
-      
-      // Set up headers
-      let headers: Record<string, string> = { 'Accept': 'application/json' };
-      const { HUGGINGFACE_API_KEY } = getEnvironmentConfig();
-      
-      // Log API key format for debugging (without revealing the full key)
-      if (HUGGINGFACE_API_KEY) {
-        logLLMService("API Key format check:", {
-          startsWithHf: HUGGINGFACE_API_KEY.startsWith('hf_'),
-          length: HUGGINGFACE_API_KEY.length,
-          prefix: HUGGINGFACE_API_KEY.substring(0, 3) + '...'
+      if (!books || books.length === 0) {
+        logLLMService("No books found in local datasets, using fallback");
+        return await this.getFallbackClozePassage(blanks_count);
+      }
+
+      // Try multiple books to find one with good content
+      const maxAttempts = Math.min(10, books.length);
+      const shuffledBooks = books.sort(() => Math.random() - 0.5);
+
+      for (let i = 0; i < maxAttempts; i++) {
+        const selectedBook = shuffledBooks[i];
+        
+        logLLMService("Trying book from local dataset", {
+          id: selectedBook.id,
+          title: selectedBook.title,
+          author: selectedBook.author
         });
-      } else {
-        logLLMService("No Hugging Face API key found in environment config");
-      }
-      
-      if (HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY.startsWith('hf_')) {
-        headers['Authorization'] = `Bearer ${HUGGINGFACE_API_KEY}`;
-        logLLMService("Using authentication with Hugging Face API");
-      } else {
-        logLLMService("No valid API key, attempting to access Hugging Face API without authentication");
-      }
 
-      logLLMService("Fetching book data from Hugging Face Datasets API", { url });
-      
-      // Make the request
-      const response = await fetch(url, {
-        method: 'GET',
-        headers
-      });
+        // Get text content
+        const bookText = getBookText(selectedBook);
+        if (!bookText || bookText.length < 1000) {
+          logLLMService("Book text too short, trying next", { id: selectedBook.id });
+          continue;
+        }
 
-      if (!response.ok) {
-        // Provide more detailed error information
-        if (response.status === 401) {
-          logLLMService("Authentication failed with Hugging Face API", {
-            status: response.status,
-            usingAuth: !!headers['Authorization']
+        // Extract paragraphs using the function from gutenbergService with difficulty
+        const paragraphs = extractParagraphsFromMiddle(bookText, difficulty);
+        if (!paragraphs || paragraphs.length === 0) {
+          logLLMService("Failed to extract paragraphs, trying next", { id: selectedBook.id });
+          continue;
+        }
+        
+        // Apply difficulty-based paragraph filtering
+        const filteredParagraphs = paragraphs.filter(para => {
+          const words = para.split(' ');
+          const avgSentenceLength = words.length / (para.split(/[.!?]+/).length - 1 || 1);
+          
+          // Filter based on difficulty guidelines
+          if (avgSentenceLength > guidelines.maxSentenceLength) return false;
+          
+          // Check vocabulary complexity
+          const complexWords = words.filter(word => {
+            const cleanWord = word.replace(/[^a-zA-Z]/g, '').toLowerCase();
+            return cleanWord.length >= guidelines.preferredWordLength[1] - 2;
           });
           
-          if (headers['Authorization']) {
-            throw new Error(`Hugging Face API authentication failed with status 401. The API key may be invalid or expired.`);
-          } else {
-            throw new Error(`Hugging Face API requires authentication (status 401). No valid API key was provided.`);
-          }
-        } else {
-          // Other error types
-          throw new Error(`Hugging Face API failed with status ${response.status}`);
-        }
-      }
-
-      const responseData = await response.json();
-      logLLMService("Received data from API", { features: responseData.features, rowCount: responseData.rows?.length });
-
-      // Check if we have valid rows
-      if (!responseData.rows || !Array.isArray(responseData.rows) || responseData.rows.length === 0) {
-        throw new Error("No valid rows returned from Hugging Face API");
-      }
-
-      // Get the book data from the first row
-      const bookRow = responseData.rows[0].row;
-      
-      if (!bookRow || !bookRow.id || !bookRow.text) {
-        throw new Error("Invalid book data returned from Hugging Face API");
-      }
-
-      // Extract book ID and text
-      const bookId = bookRow.id.toString();
-      const fullText = bookRow.text;
-
-      // Parse book text to extract title, author, and content
-      const titleMatch = fullText.match(/Title: ([^\n]+)/);
-      const authorMatch = fullText.match(/Author: ([^\n]+)/);
-      
-      const title = titleMatch?.[1]?.trim() || "Unknown Title";
-      const author = authorMatch?.[1]?.trim() || "Unknown Author";
-
-      // Extract content by skipping the Gutenberg framing content
-      let content = fullText;
-      
-      // Skip header content
-      const startMarker = "***START OF THE PROJECT GUTENBERG EBOOK";
-      const startIndex = content.indexOf(startMarker);
-      if (startIndex !== -1) {
-        // Skip to the end of the line containing the start marker
-        const lineEndIndex = content.indexOf("\n", startIndex);
-        if (lineEndIndex !== -1) {
-          content = content.substring(lineEndIndex + 1);
-        }
-      }
-
-      // Remove end marker and footer if present
-      const endMarker = "***END OF THE PROJECT GUTENBERG EBOOK";
-      const endIndex = content.indexOf(endMarker);
-      if (endIndex !== -1) {
-        content = content.substring(0, endIndex);
-      }
-
-      // Remove extra whitespace and normalize line endings
-      content = content.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-
-      // Split into paragraphs
-      let paragraphs = content.split(/\n\n+/)
-        .map((p: string) => p.trim())
-        .filter((p: string) => p.length > 100) // Only keep paragraphs with substantial content
-        .slice(1, 4); // Take paragraphs 2-4 (skip the first one, which might be leftover header content)
-
-      if (paragraphs.length === 0) {
-        throw new Error("No suitable paragraphs found in the book text");
-      }
-
-      // 2. Split paragraphs into words
-      const paragraphsWords: string[][] = paragraphs.map((p: string) => p.split(' '));
-      
-      // 3. Distribute blanks
-      let blanksRemaining = blanks_count;
-      const redactedIndices: number[][] = paragraphsWords.map(words => {
-        if (blanksRemaining > 0 && words.length >= 5) {
-          const count = Math.min(blanksRemaining, Math.max(1, Math.floor(blanks_count / paragraphsWords.length)));
-          blanksRemaining -= count;
-          return chooseRedactions(words, count);
-        }
-        return [];
-      });
-
-      // If any blanks remain, add to the first paragraph with enough words
-      if (blanksRemaining > 0) {
-        for (let i = 0; i < paragraphsWords.length; i++) {
-          if (paragraphsWords[i].length >= 5) {
-            const extra = chooseRedactions(paragraphsWords[i], blanksRemaining);
-            redactedIndices[i] = [...redactedIndices[i], ...extra];
-            break;
-          }
-        }
-      }
-
-      // 4. Build the output: paragraphs with blanks, answers array
-      const outputParagraphs: string[] = [];
-      const answers: { paragraphIndex: number; wordIndex: number; answer: string }[] = [];
-      paragraphsWords.forEach((words, pIdx) => {
-        const indices = new Set(redactedIndices[pIdx]);
-        const paraWords = words.map((word, wIdx) => {
-          if (indices.has(wIdx)) {
-            answers.push({ paragraphIndex: pIdx, wordIndex: wIdx, answer: word });
-            // Replace with underscores matching word length
-            return '_'.repeat(word.length);
-          }
-          return word;
+          const complexityRatio = complexWords.length / words.length;
+          
+          // Adjust complexity expectations based on difficulty
+          const expectedComplexity = {
+            1: [0, 0.15],     // Very few complex words
+            2: [0.05, 0.25],  // Some complex words
+            3: [0.15, 0.35],  // Moderate complexity
+            4: [0.25, 0.45],  // Higher complexity
+            5: [0.35, 0.60]   // High complexity acceptable
+          };
+          
+          const [minComplex, maxComplex] = expectedComplexity[difficulty as keyof typeof expectedComplexity];
+          return complexityRatio >= minComplex && complexityRatio <= maxComplex;
         });
-        outputParagraphs.push(paraWords.join(' '));
-      });
+        
+        if (filteredParagraphs.length === 0) {
+          logLLMService("No paragraphs passed difficulty filter, trying next book", { id: selectedBook.id });
+          continue;
+        }
+        
+        logLLMService(`Filtered paragraphs for difficulty ${difficulty}:`, {
+          original: paragraphs.length,
+          filtered: filteredParagraphs.length
+        });
 
-      // Create metadata
-      const metadata = {
-        title,
-        author,
-        id: parseInt(bookId.replace(/\D/g, '')) || 0,
-        canonicalUrl: `https://www.gutenberg.org/ebooks/${bookId.replace(/\D/g, '')}`
-      };
+        logLLMService("Successfully extracted passage from local dataset", {
+          id: selectedBook.id,
+          paragraphCount: paragraphs.length
+        });
 
-      return {
-        paragraphs: outputParagraphs,
-        answers,
-        metadata
-      };
+        // Split filtered paragraphs into words
+        const paragraphsWords: string[][] = filteredParagraphs.map((p: string) => p.split(' '));
+        
+        // Distribute blanks with difficulty-aware word selection
+        let blanksRemaining = blanks_count;
+        const redactedIndices: number[][] = paragraphsWords.map(words => {
+          if (blanksRemaining > 0 && words.length >= 5) {
+            const count = Math.min(blanksRemaining, Math.max(1, Math.floor(blanks_count / paragraphsWords.length)));
+            blanksRemaining -= count;
+            
+            // Use difficulty-aware word selection
+            return chooseRedactionsWithDifficulty(words, count, difficulty);
+          }
+          return [];
+        });
+
+        // If any blanks remain, add to the first paragraph with enough words
+        if (blanksRemaining > 0) {
+          for (let j = 0; j < paragraphsWords.length; j++) {
+            if (paragraphsWords[j].length >= 5) {
+              const extra = chooseRedactionsWithDifficulty(paragraphsWords[j], blanksRemaining, difficulty);
+              redactedIndices[j] = [...redactedIndices[j], ...extra];
+              break;
+            }
+          }
+        }
+
+        // Build the output: paragraphs with blanks, answers array
+        const outputParagraphs: string[] = [];
+        const answers: { paragraphIndex: number; wordIndex: number; answer: string }[] = [];
+        paragraphsWords.forEach((words, pIdx) => {
+          const indices = new Set(redactedIndices[pIdx]);
+          const paraWords = words.map((word, wIdx) => {
+            if (indices.has(wIdx)) {
+              answers.push({ paragraphIndex: pIdx, wordIndex: wIdx, answer: word });
+              // Replace with underscores matching word length
+              return '_'.repeat(word.length);
+            }
+            return word;
+          });
+          outputParagraphs.push(paraWords.join(' '));
+        });
+
+        // Create metadata
+        const metadata = {
+          title: selectedBook.title,
+          author: selectedBook.author,
+          id: typeof selectedBook.id === 'string' ? parseInt(selectedBook.id.replace(/\D/g, '')) || 0 : selectedBook.id,
+          canonicalUrl: `https://www.gutenberg.org/ebooks/${selectedBook.id}`
+        };
+
+        return {
+          paragraphs: outputParagraphs,
+          answers,
+          metadata
+        };
+      }
+
+      // If no suitable book found after all attempts, use fallback
+      logLLMService("Could not find suitable book after all attempts, using fallback");
+      return await this.getFallbackClozePassage(blanks_count);
     } catch (error) {
       logLLMService("Error in get_cloze_passage:", error);
       
-      // Provide more context about the error
-      if (error instanceof Error) {
-        if (error.message.includes('401')) {
-          logLLMService("Authentication error detected, will try fallback mechanism");
-          // Instead of throwing, try to use the fallback mechanism
-          try {
-            return await this.getFallbackClozePassage(args.blanks_count);
-          } catch (fallbackError) {
-            logLLMService("Fallback mechanism also failed:", fallbackError);
-            throw new Error(`Failed to get passage: ${error.message}. Fallback also failed.`);
-          }
-        }
+      // Use fallback for any error
+      try {
+        return await this.getFallbackClozePassage(blanks_count);
+      } catch (fallbackError) {
+        logLLMService("Fallback mechanism also failed:", fallbackError);
+        throw new Error(`Failed to get passage from local datasets and fallback failed.`);
       }
-      
-      throw error; // For other errors, let the calling code handle it
     }
   },
 

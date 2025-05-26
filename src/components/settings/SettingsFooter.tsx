@@ -21,6 +21,26 @@ export const SettingsFooter: FunctionComponent<SettingsFooterProps> = ({
     setIsExpanded(!isExpanded);
   };
 
+  // Add global function to toggle settings from header button
+  useEffect(() => {
+    (window as any).toggleSettings = toggleExpanded;
+    return () => {
+      delete (window as any).toggleSettings;
+    };
+  }, []);
+
+  // Add event listener for header settings button
+  useEffect(() => {
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) {
+      const handleClick = () => toggleExpanded();
+      settingsBtn.addEventListener('click', handleClick);
+      return () => {
+        settingsBtn.removeEventListener('click', handleClick);
+      };
+    }
+  }, []);
+
   return (
     <div className={`settings-footer ${isExpanded ? 'expanded' : ''}`} role="region" aria-label="Game settings">
       <div 

@@ -153,6 +153,19 @@ export const QueryOptions: FunctionComponent<QueryOptionsProps> = ({ isRemoteInt
           </div>
         </div>
       </div>
+      
+      {/* Add New Text button */}
+      <div className="mt-4 flex justify-end">
+        <button
+          id="query-new-text-btn"
+          className="px-3 py-1 bg-typewriter-ribbon text-aged-paper rounded shadow-typewriter hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-typewriter-ink transition-all"
+          onClick={() => {
+            if (window.startRound) window.startRound(true);
+          }}
+        >
+          Generate New Text
+        </button>
+      </div>
     </div>
   );
 };

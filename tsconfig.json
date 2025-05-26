@@ -11,8 +11,9 @@
     "noEmit": true, // Do not emit output (Parcel handles this)
     "resolveJsonModule": true, // Include modules imported with .json extension
     "isolatedModules": true, // Ensure each file can be safely transpiled without relying on other imports
-    "jsx": "react-jsx", // Use the new JSX transform
-    "jsxImportSource": "preact", // Specify Preact as the JSX source
+    "jsx": "react", // Use classic JSX transform compatible with Preact's h function
+    "jsxFactory": "h", // Specify h as the JSX factory function
+    "jsxFragmentFactory": "Fragment", // Specify Fragment for JSX fragments
     "baseUrl": "./", // Base directory to resolve non-absolute module names
     "paths": {
       "@/*": ["src/*"] // Alias for src directory

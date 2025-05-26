@@ -44,30 +44,19 @@ async function testHuggingFaceApiKey(key: string): Promise<{success: boolean, me
   
   try {
     // Make a simple request to the Hugging Face API to test the key
-    const response = await fetch('https://datasets-server.huggingface.co/rows?dataset=manu/project_gutenberg&config=default&split=en&offset=0&length=1', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${key}`
-      }
-    });
-    
-    if (response.ok) {
-      return {
-        success: true,
-        message: 'API key is valid and working correctly!'
-      };
-    } else if (response.status === 401) {
+    // Since we now use local datasets, we can't test against external APIs
+    // Instead, just validate the key format
+    if (!key.startsWith('hf_') || key.length < 30) {
       return {
         success: false,
-        message: 'Authentication failed. The API key is invalid or has expired.'
-      };
-    } else {
-      return {
-        success: false,
-        message: `API test failed with status ${response.status}. The key may not have the necessary permissions.`
+        message: 'Invalid API key format. Hugging Face keys should start with "hf_" and be at least 30 characters long.'
       };
     }
+    
+    return {
+      success: true,
+      message: 'API key format appears valid! Note: Using local datasets, so external API verification is not performed.'
+    };
   } catch (error) {
     return {
       success: false,

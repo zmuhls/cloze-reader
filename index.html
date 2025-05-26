@@ -57,6 +57,7 @@
         id="new-text-btn"
         class="px-4 py-2 bg-typewriter-ribbon text-aged-paper font-medium rounded shadow-typewriter hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-typewriter-ink focus:ring-offset-2 transition-all min-w-[120px] min-h-[42px] flex items-center justify-center"
         aria-label="Get new text passage"
+        onclick="if(window.startRound) window.startRound(true);"
       >
         New Text
       </button>
@@ -65,7 +66,6 @@
   <main id="app" class="flex-1 overflow-auto p-6 flex flex-col gap-4"> <!-- Changed from grid to flex column -->
     <section id="bibliographic-area" class="p-4 rounded shadow bg-aged-paper ink-ribbon-effect"></section>
     <section id="game-area" class="prose prose-lg p-4 rounded shadow break-words bg-aged-paper ink-ribbon-effect"></section>
-    <section id="analysis-area" class="prose prose-lg p-4 rounded shadow break-words bg-aged-paper ink-ribbon-effect hidden"></section>
     
     <!-- Game controls with the Hint | Submit buttons -->
     <div class="flex flex-col gap-2">
@@ -79,12 +79,30 @@
           Hint (3)
         </button>
         <button
-          id="submit-btn"
+          id="analysis-btn"
           class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
-          aria-label="Submit your answers"
+          aria-label="Show analysis for the passage"
+          style="display: none"
         >
-          Submit
+          Analysis
         </button>
+        <div class="game-buttons-container flex flex-col items-end gap-2">
+          <button
+            id="submit-btn"
+            class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
+            aria-label="Submit your answers"
+          >
+            Submit
+          </button>
+          <button
+            id="continue-btn"
+            class="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
+            aria-label="Continue to the next round"
+            style="display: none"
+          >
+            Continue
+          </button>
+        </div>
       </div>
       
       <footer id="result" class="text-center text-lg font-medium text-shadow-typewriter"></footer>

@@ -70,16 +70,34 @@ span.typewriter-text {
 p.typewriter-text {
   display: block; /* Paragraphs should be block elements */
   margin-bottom: 1.5rem; /* Space between paragraphs */
+  line-height: 1.8; /* Comfortable reading line height */
   /* Ensure text within paragraphs also wraps correctly */
   overflow-wrap: break-word;
   word-wrap: break-word;
-  word-break: break-word;
+  word-break: normal; /* Don't break words unless necessary */
   hyphens: auto; /* Allow hyphenation for better word wrapping */
+  text-align: justify; /* Justify text for better reading experience */
+  text-justify: inter-word;
 }
 
 /* Dialogue formatting with tighter spacing */
 p.typewriter-text[data-dialogue="true"] {
   margin-bottom: 0.5rem;
+  text-align: left; /* Don't justify dialogue */
+}
+
+/* Ensure game area has proper spacing */
+#game-area {
+  line-height: 1.8;
+}
+
+/* Remove any unwanted spacing from child elements */
+#game-area p:first-child {
+  margin-top: 0;
+}
+
+#game-area p:last-child {
+  margin-bottom: 0;
 }
 
 /* Make instructions stand out */

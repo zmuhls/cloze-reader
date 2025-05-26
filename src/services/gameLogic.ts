@@ -13,7 +13,7 @@ import {
   logError
 } from '@/utils/errorHandling';
 import { validateCachedPassage, validateAndParseCachedPassage } from '@/utils/cacheValidation';
-import { fetchGutenbergPassage } from '@/main';
+import { fetchGutenbergPassage } from '@/services/gutenbergService';
 import { PassageData } from '@/services/gutenbergService';
 
 // --- Type Definitions (specific to game logic) ---
@@ -268,6 +268,11 @@ export function initializeGameDOMElements(elements: GameDOMElements) {
       });
     }
     
+    // Make functions globally available
+    window.startRound = startRound;
+    window.showAnalysis = showAnalysis;
+    window.continueToNextRound = continueToNextRound;
+    
     debugLog("Game DOM elements initialized successfully.");
   } else {
     isDOMElementsInitialized = false;
@@ -284,6 +289,9 @@ declare function stopTimer(): void; // Added for completeness, though renderRoun
 declare global {
   interface Window {
     applyTypewriterEffect: (element?: HTMLElement) => void;
+    startRound?: (forceNewPassage?: boolean) => Promise<object | null>;
+    showAnalysis?: () => Promise<void>;
+    continueToNextRound?: (passed: boolean) => void;
   }
 }
 
@@ -334,15 +342,18 @@ export function renderRound() {
     const isDialogue = paragraphText.trim().startsWith('"');
     
     // Apply appropriate styling based on paragraph type
-    paragraphElement.className = 'typewriter-text leading-relaxed break-words';
+    paragraphElement.className = 'typewriter-text leading-relaxed break-words mb-6';
     
     // If this is dialogue, add data-dialogue attribute for CSS targeting
     if (isDialogue) {
       paragraphElement.setAttribute('data-dialogue', 'true');
+      paragraphElement.className = 'typewriter-text leading-relaxed break-words mb-2';
     }
     
     paragraphElement.style.maxWidth = '100%';
     paragraphElement.style.overflowWrap = 'break-word';
+    paragraphElement.style.lineHeight = '1.8';
+    paragraphElement.style.marginBottom = isDialogue ? '0.5rem' : '1.5rem';
     gameArea.appendChild(paragraphElement);
 
     paragraphsWords[pIdx].forEach((word, idx) => {
@@ -394,7 +405,11 @@ export function renderRound() {
         });
         paragraphElement.appendChild(input);
         if (infoIcon) paragraphElement.appendChild(infoIcon);
-        paragraphElement.appendChild(document.createTextNode(' '));
+        
+        // Add space after input unless it's the last word in the paragraph
+        if (idx < paragraphsWords[pIdx].length - 1) {
+          paragraphElement.appendChild(document.createTextNode(' '));
+        }
 
         input.addEventListener('focus', () => {
           if (!domElements || !domElements.hintBtn) return; // Guard against null domElements or hintBtn
@@ -439,10 +454,13 @@ export function renderRound() {
           };
         });
       } else {
-        const wordSpan = document.createElement('span');
-        wordSpan.textContent = word + ' ';
-        wordSpan.className = 'typewriter-text';
-        paragraphElement.appendChild(wordSpan);
+        // Add word as text node to avoid extra spans and improve text flow
+        paragraphElement.appendChild(document.createTextNode(word));
+        
+        // Add space after word unless it's the last word in the paragraph
+        if (idx < paragraphsWords[pIdx].length - 1) {
+          paragraphElement.appendChild(document.createTextNode(' '));
+        }
       }
     });
   }
@@ -530,40 +548,54 @@ export function continueToNextRound(passed: boolean) {
     // Increment round number
     round++;
     
-    // NEW: Structured difficulty gradient
+    // Enhanced structured difficulty gradient (1-5 levels)
     switch(round) {
       case 1:
-        // Level 1: Easy passage, 1 "easy" blank
+        // Level 1: Elementary - simple words, basic sentences
         blanksCount = 1;
         passageDifficulty = 1;
         break;
       case 2:
-        // Level 2: Easy passage, 1 "moderate" blank
+        // Level 2: Basic - slightly more complex, still accessible
         blanksCount = 1;
-        passageDifficulty = 1;
+        passageDifficulty = 2;
         break;
       case 3:
-        // Level 3: Moderate passage, 2 "moderate" blanks
+        // Level 3: Intermediate - moderate complexity, varied vocabulary
         blanksCount = 2;
-        passageDifficulty = 2;
-        break;
-      case 4:
-        // Level 4: Moderate passage, 2-3 "moderate" blanks
-        blanksCount = Math.floor(Math.random() * 2) + 2; // 2-3 blanks
-        passageDifficulty = 2;
-        break;
-      case 5:
-        // Level 5: Moderate-Hard passage, 3 blanks (mix of moderate and difficult)
-        blanksCount = 3;
         passageDifficulty = 3;
         break;
+      case 4:
+        // Level 4: Advanced - sophisticated vocabulary, longer sentences
+        blanksCount = Math.floor(Math.random() * 2) + 2; // 2-3 blanks
+        passageDifficulty = 4;
+        break;
+      case 5:
+        // Level 5: Expert - complex literary language, challenging blanks
+        blanksCount = 3;
+        passageDifficulty = 5;
+        break;
+      case 6:
+      case 7:
+        // Continue with Level 5 difficulty but more blanks
+        blanksCount = Math.min(4, 3 + Math.floor((round - 5) / 2));
+        passageDifficulty = 5;
+        break;
       default:
-        // Higher rounds: Gradually increase difficulty
-        blanksCount = Math.min(5, 3 + Math.floor((round - 5) / 2)); // Cap at 5 blanks
-        passageDifficulty = Math.min(5, 3 + Math.floor((round - 5) / 3)); // Cap at difficulty 5
+        // Advanced rounds: maintain highest difficulty, increase blanks gradually
+        blanksCount = Math.min(6, 4 + Math.floor((round - 7) / 3)); // Cap at 6 blanks
+        passageDifficulty = 5; // Always max difficulty for advanced rounds
     }
     
-    debugLog(`Round ${round}: blanks=${blanksCount}, difficulty=${passageDifficulty}`);
+    const difficultyLabels = {
+      1: 'Elementary',
+      2: 'Basic', 
+      3: 'Intermediate',
+      4: 'Advanced',
+      5: 'Expert'
+    };
+    
+    debugLog(`Round ${round}: blanks=${blanksCount}, difficulty=${passageDifficulty} (${difficultyLabels[passageDifficulty as keyof typeof difficultyLabels] || 'Unknown'})`);
   }
   
   // Start a new round with appropriate parameter
@@ -630,7 +662,7 @@ export async function startRound(forceNewPassage: boolean = false): Promise<obje
   debugLog("API Connection", {
     forceNewPassage,
     cacheExists: !!cachedPassage,
-    endpoint: "https://datasets-server.huggingface.co/rows?dataset=manu%2Fproject_gutenberg" // Using HuggingFace dataset API
+    endpoint: "local-datasets" // Using local dataset files
   });
 
   // Use validateAndParseCachedPassage to handle both parsing and validation in one step
@@ -1123,8 +1155,8 @@ export function handleSubmission() {
   const passed = scorePercentage >= 70;
   
   // Show the existing Continue button and Analysis button in game controls and set up their functionality
-  const continueButton = document.getElementById('continue-btn');
-  const analysisButton = document.getElementById('analysis-btn');
+  const continueButton = document.getElementById('continue-btn') as HTMLButtonElement;
+  const analysisButton = document.getElementById('analysis-btn') as HTMLButtonElement;
   
   if (continueButton) {
     continueButton.style.display = 'flex'; // Show the button
@@ -1159,7 +1191,7 @@ export function handleSubmission() {
 /**
  * Shows passage analysis including context and word analysis for the cloze test
  */
-async function showAnalysis() {
+export async function showAnalysis() {
   if (!domElements) {
     console.error("DOM elements not initialized for showAnalysis");
     return;

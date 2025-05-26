@@ -1,4 +1,4 @@
-import { h, render } from 'preact';
+import { h, render, Fragment } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { SettingsFooter } from './components/settings/SettingsFooter';
 import { WelcomeOverlay } from './components/welcome/WelcomeOverlay';
@@ -226,7 +226,7 @@ const App = () => {
             <button
               id="analysis-btn"
               className="px-3 py-1 bg-aged-paper-dark text-typewriter-ink rounded border border-gray-300 shadow-typewriter hover:bg-aged-paper focus:outline-none focus:ring-2 focus:ring-typewriter-ribbon disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] min-h-[36px] flex items-center justify-center transition-all text-sm"
-              aria-label="Show analysis of the passage"
+              aria-label="Show analysis for the passage"
               style={{display: 'none'}}
             >
               Analysis

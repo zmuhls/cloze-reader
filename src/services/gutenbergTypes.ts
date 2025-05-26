@@ -13,6 +13,65 @@ export interface HuggingFaceDatasetResponse {
   truncated: boolean;
 }
 
+// --- Local Dataset Types ---
+export interface LocalGutenbergBook {
+  // For gutenberg_cleaned dataset
+  etextno?: number;
+  book_title?: string;
+  author?: string;
+  issued?: string;
+  context?: string;
+  
+  // For gutenberg_fiction dataset
+  book_id?: number;
+  title?: string;
+  author_gender?: string;
+  author_birth_year?: number;
+  author_death_year?: number;
+  release_date?: string;
+  pg_subjects?: string[];
+  topics?: string[];
+  text?: string;
+  
+  // For gutenberg-poetry-corpus dataset
+  line?: string;
+  gutenberg_id?: number;
+  
+  // Common fields
+  id?: string | number;
+}
+
+// --- Local Dataset Configuration ---
+export const LOCAL_DATASET_PATHS = {
+  cleaned: '/data/gutenberg_cleaned/sample.json',
+  fiction: '/data/gutenberg_fiction/sample.json',
+  poetry: '/data/gutenberg-poetry-corpus/sample.json'
+};
+
+// Category to dataset type mapping
+export const CATEGORY_TO_DATASET_MAP: Record<string, string> = {
+  // Fiction categories
+  "486": "fiction", // Fiction (General)
+  "480": "fiction", // Science-Fiction & Fantasy  
+  "433": "fiction", // Crime/Mystery
+  
+  // Poetry
+  "467": "poetry", // Poetry
+  
+  // Everything else uses cleaned dataset
+  "466": "cleaned", // Philosophy & Ethics
+  "478": "cleaned", // Science (General)
+  "468": "cleaned", // Politics
+  "446": "cleaned", // History (General)
+  "458": "cleaned", // Literature
+  "460": "cleaned", // Music
+  "484": "cleaned", // Teaching & Education
+  "459": "cleaned", // Mathematics
+  "427": "cleaned", // Biographies
+  "453": "cleaned", // Humour
+  "485": "cleaned"  // Travel & Geography
+};
+
 // --- HuggingFace Project Gutenberg Dataset Types ---
 
 export interface HuggingFaceBook {
@@ -77,6 +136,73 @@ export function parseBookshelf(category: string | null | undefined): string | un
   }
   // Otherwise, return the category as is (could be a direct name like "Science Fiction")
   return category;
+}
+
+/**
+ * Converts a category to the appropriate local dataset type
+ * @param category The category string (e.g. "bookshelf/486")
+ * @returns The dataset type to use
+ */
+export function categoryToDatasetType(category: string | null): string {
+  if (!category) return "cleaned";
+  
+  // Extract code if it's in the format "bookshelf/XXX"
+  const code = category.startsWith("bookshelf/") 
+    ? category.split("/")[1] 
+    : category;
+    
+  return CATEGORY_TO_DATASET_MAP[code] || "cleaned";
+}
+
+/**
+ * Transforms a local dataset book to HuggingFaceBook format
+ * @param book The local book data
+ * @param datasetType The type of dataset (cleaned, fiction, poetry)
+ * @returns Transformed HuggingFaceBook object
+ */
+export function transformLocalBookToHuggingFace(book: LocalGutenbergBook, datasetType: string): HuggingFaceBook {
+  switch (datasetType) {
+    case 'fiction':
+      return {
+        id: book.book_id || book.id || Math.floor(Math.random() * 1000000),
+        title: book.title || 'Unknown Title',
+        author: book.author || 'Unknown Author',
+        text: book.text || '',
+        subjects: book.pg_subjects || [],
+        bookshelves: book.topics || []
+      };
+    
+    case 'cleaned':
+      return {
+        id: book.etextno || book.id || Math.floor(Math.random() * 1000000),
+        title: book.book_title || 'Unknown Title',
+        author: book.author || 'Unknown Author',
+        text: book.context || '',
+        subjects: [],
+        bookshelves: []
+      };
+    
+    case 'poetry':
+      // For poetry corpus, we need to aggregate lines by gutenberg_id
+      return {
+        id: book.gutenberg_id || book.id || Math.floor(Math.random() * 1000000),
+        title: 'Poetry Collection',
+        author: 'Various Authors',
+        text: book.line || '',
+        subjects: ['Poetry'],
+        bookshelves: ['Poetry']
+      };
+    
+    default:
+      return {
+        id: book.id || Math.floor(Math.random() * 1000000),
+        title: book.title || book.book_title || 'Unknown Title',
+        author: book.author || 'Unknown Author',
+        text: book.text || book.context || '',
+        subjects: [],
+        bookshelves: []
+      };
+  }
 }
 
 /**
