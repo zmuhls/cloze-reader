@@ -78,7 +78,6 @@ Note: For GitHub Pages deployment, make sure to:
 - Parcel
 - Tailwind CSS
 - OpenRouter (via tool calling)
-- Project Gutenberg API (via service)
 
 ## License
 
