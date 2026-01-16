@@ -47,12 +47,30 @@
   }
 }
 
-/* Larger screens get bigger icons */
+/* Tablets */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .chat-button {
+    font-size: 1.4rem;
+    min-width: 30px;
+    min-height: 30px;
+  }
+}
+
+/* Desktop - smaller icons */
 @media (min-width: 1024px) {
   .chat-button {
-    font-size: 1.75rem;
-    min-width: 36px;
-    min-height: 36px;
+    font-size: 1.6rem;
+    min-width: 32px;
+    min-height: 32px;
+  }
+}
+
+/* Extra large screens - even smaller */
+@media (min-width: 1280px) {
+  .chat-button {
+    font-size: 1.4rem;
+    min-width: 28px;
+    min-height: 28px;
   }
 }
 
@@ -113,6 +131,33 @@
   opacity: 0.5;
   cursor: not-allowed;
   background: #f8f9fa;
+}
+
+/* Responsive button sizing - tablets and larger */
+@media (min-width: 768px) {
+  .suggestion-btn, .question-btn {
+    min-height: 56px;
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+}
+
+/* Desktop sizing - smaller buttons */
+@media (min-width: 1024px) {
+  .suggestion-btn, .question-btn {
+    min-height: 48px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+
+/* Extra large screens - even more compact */
+@media (min-width: 1280px) {
+  .suggestion-btn, .question-btn {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 }
 
 /* Answer revelation styles */
@@ -577,12 +622,34 @@
   .sticky-controls .typewriter-button {
     flex: 1;
     max-width: 200px;
-    min-height: 44px;
+    min-height: 48px;
     margin: 0;
     border-radius: 0;
     font-size: 16px;
     font-weight: 600;
     position: relative;
+  }
+
+  /* Responsive sticky control sizing */
+  @media (min-width: 768px) {
+    .sticky-controls .typewriter-button {
+      min-height: 44px;
+      font-size: 15px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .sticky-controls .typewriter-button {
+      min-height: 40px;
+      font-size: 14px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .sticky-controls .typewriter-button {
+      min-height: 36px;
+      font-size: 13px;
+    }
   }
 
   .sticky-controls .typewriter-button:first-child {
