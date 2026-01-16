@@ -9,7 +9,7 @@ const MAX_RELOAD_CYCLES = 2; // How many times to reload and continue (1-4, 5-8,
 
 // OpenRouter API configuration
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'google/gemma-3-27b-it';
+const MODEL = 'google/gemma-3-12b-it';
 
 // Get API key from .env file
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -21,7 +21,8 @@ if (!OPENROUTER_API_KEY) {
 }
 
 /**
- * Use Gemma 3-27b to guess the missing words based on passage context
+ * Use Gemma 3-12b to guess the missing words based on passage context
+ * Optimized for low latency with strong contextual reasoning
  */
 async function aiGuessWords(passageText, hints, numBlanks, previousGuesses = []) {
   const previousGuessesText = previousGuesses.length > 0
@@ -38,13 +39,14 @@ async function aiGuessWords(passageText, hints, numBlanks, previousGuesses = [])
     ? passageText.substring(0, 250) + '...'
     : passageText;
 
-  const prompt = `Fill ${numBlanks} missing word(s) in passage. Use context, ignore hints if they conflict.
+  const prompt = `Complete the blanks using context clues from the passage. Prioritize passage context over hints.${previousGuessesText}
 
-TEXT: ${truncatedPassage}
+PASSAGE: ${truncatedPassage}
 
-HINTS: ${parsedConstraints}${previousGuessesText}
+CONSTRAINTS: ${parsedConstraints}
 
-Return JSON only: ["word"]`;
+Answer format: ["word1", "word2"]`;
+
 
 
   try {
@@ -61,8 +63,8 @@ Return JSON only: ["word"]`;
         messages: [
           { role: 'user', content: prompt }
         ],
-        max_tokens: 50,
-        temperature: 0.2
+        max_tokens: 40,
+        temperature: 0.25
       })
     });
 
@@ -267,7 +269,7 @@ async function playRound(page) {
   passageForAI = passageForAI.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
   // Use AI to guess the words
-  console.log('🤖 Asking Gemma 3n E4B to guess the words...\n');
+  console.log('🤖 Asking Gemma 3 12B to guess the words...\n');
   const aiGuesses = await aiGuessWords(passageForAI, hints, inputs.length);
 
   // Track initial guesses for retry logic
