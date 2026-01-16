@@ -17,8 +17,15 @@ import logging
 load_dotenv()
 
 # Import Leaderboard Services (Redis primary, HF fallback)
-from redis_leaderboard import RedisLeaderboardService
-from redis_analytics import RedisAnalyticsService
+try:
+    from redis_leaderboard import RedisLeaderboardService
+except ImportError:
+    RedisLeaderboardService = None
+
+try:
+    from redis_analytics import RedisAnalyticsService
+except ImportError:
+    RedisAnalyticsService = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,31 +44,39 @@ app.add_middleware(
 
 # Initialize Leaderboard Service (Redis primary, HF Space fallback)
 # REDIS_URL is auto-injected by Railway when Redis plugin is added
-try:
-    leaderboard_service = RedisLeaderboardService(
-        redis_url=os.getenv("REDIS_URL"),
-        hf_fallback_url="https://milwright-cloze-leaderboard.hf.space",
-        hf_token=os.getenv("HF_TOKEN"),
-    )
-    if leaderboard_service.is_redis_available():
-        logger.info("Leaderboard using Redis (primary) with HF Space (fallback)")
-    else:
-        logger.info("Leaderboard using HF Space (Redis unavailable)")
-except Exception as e:
-    logger.warning(f"Could not initialize Leaderboard Service: {e}")
-    logger.warning("Leaderboard will use localStorage fallback only")
-    leaderboard_service = None
+leaderboard_service = None
+if RedisLeaderboardService:
+    try:
+        leaderboard_service = RedisLeaderboardService(
+            redis_url=os.getenv("REDIS_URL"),
+            hf_fallback_url="https://milwright-cloze-leaderboard.hf.space",
+            hf_token=os.getenv("HF_TOKEN"),
+        )
+        if leaderboard_service.is_redis_available():
+            logger.info("Leaderboard using Redis (primary) with HF Space (fallback)")
+        else:
+            logger.info("Leaderboard using HF Space (Redis unavailable)")
+    except Exception as e:
+        logger.warning(f"Could not initialize Leaderboard Service: {e}")
+        logger.warning("Leaderboard will use localStorage fallback only")
+        leaderboard_service = None
+else:
+    logger.info("Leaderboard module not available - using localStorage only")
 
 # Initialize Analytics Service (Redis)
-try:
-    analytics_service = RedisAnalyticsService(redis_url=os.getenv("REDIS_URL"))
-    if analytics_service.is_available():
-        logger.info("Analytics Service using Redis")
-    else:
-        logger.info("Analytics Service unavailable (Redis not connected)")
-except Exception as e:
-    logger.warning(f"Could not initialize Analytics Service: {e}")
-    analytics_service = None
+analytics_service = None
+if RedisAnalyticsService:
+    try:
+        analytics_service = RedisAnalyticsService(redis_url=os.getenv("REDIS_URL"))
+        if analytics_service.is_available():
+            logger.info("Analytics Service using Redis")
+        else:
+            logger.info("Analytics Service unavailable (Redis not connected)")
+    except Exception as e:
+        logger.warning(f"Could not initialize Analytics Service: {e}")
+        analytics_service = None
+else:
+    logger.info("Analytics module not available")
 
 # Pydantic models for API
 class LeaderboardEntry(BaseModel):
