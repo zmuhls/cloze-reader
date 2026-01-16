@@ -1,0 +1,740 @@
+🎮 Starting Cloze Reader automation...
+
+
+============================================================
+🔄 RELOAD CYCLE 1/2
+============================================================
+
+📖 Navigating to https://reader.inference-arcade.com/
+👋 Waiting for welcome overlay...
+✓ Welcome overlay dismissed
+
+⏳ Waiting for game to load...
+✓ Game loaded!
+
+
+==================================================
+📚 PASSAGE 1 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 1 • 1 blank
+
+📝 Passage preview: "In an experience of some 
+        
+          
+          
+            💬
+          
+         among northern ruins, many of them located with special re..."
+
+💡 Hints:
+   1.
+        5 letters, starts with "y", ends with "s"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 240 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=5, first='y', last='s'
+   Matching candidates: years (1 total)
+   Blank 1: Guessing "years"
+
+📤 Submitting answers...
+
+📊 Result: Score: 1/1 - Level 2 unlocked!
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 2 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 2 • 1 blank
+
+📝 Passage preview: "There is no setback in the northern wall at the first floor level, though there is a very slight one in the southern wall; none appears in the eastern..."
+
+💡 Hints:
+   1.
+        5 letters, starts with "n", ends with "r"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 311 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=5, first='n', last='r'
+   Matching candidates: never (1 total)
+   Blank 1: Guessing "never"
+
+📤 Submitting answers...
+
+📊 Result: Score: 1/1 - Level 3 unlocked!
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 3 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 3 • 1 blank
+
+📝 Passage preview: "The eastern room is a little more regular, but there is a difference of 11 inches between the measurements of the northern and southern ends. A simila..."
+
+💡 Hints:
+   1.
+        4 letters, starts with "f"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 271 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=4, first='f', last='null'
+   Matching candidates: from, find (2 total)
+   Blank 1: Guessing "from"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 278 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "world"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 280 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "seemed"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 4 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 3 • 1 blank
+
+📝 Passage preview: "The finish of some of the openings suggests that the 
+        
+          
+          
+            💬
+          
+         was but 3 or 4 inches above th..."
+
+💡 Hints:
+   1.
+        5 letters, starts with "f"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 278 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=5, first='f', last='null'
+   Matching candidates: found (1 total)
+   Blank 1: Guessing "found"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 285 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "great"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 287 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "always"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 5 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 3 • 1 blank
+
+📝 Passage preview: "The statement that the ruin exhibits exceptional skill in construction on the part of the builders, is not, therefore, supported by facts. The Casa Gr..."
+
+💡 Hints:
+   1.
+        4 letters, starts with "t"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 252 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=4, first='t', last='null'
+   Matching candidates: that, this, they, take, then (5 total)
+   Blank 1: Guessing "that"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 260 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "great"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 261 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "became"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 6 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 3 • 1 blank
+
+📝 Passage preview: "The middle room had three doorways, one above the other, all opening eastward. The lowest doorway opened directly on the floor level, and was 2 feet w..."
+
+💡 Hints:
+   1.
+        6 letters, starts with "e"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 265 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=6, first='e', last='null'
+   Matching candidates:  (0 total)
+   Blank 1: Guessing "the"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 272 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "found"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 274 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "became"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 7 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 3 • 1 blank
+
+📝 Passage preview: "The long north and south ridge which forms the southeastern corner of the area, with 
+        
+          
+          
+            💬..."
+
+💡 Hints:
+   1.
+        5 letters, starts with "o"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 275 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=5, first='o', last='null'
+   Matching candidates: other (1 total)
+   Blank 1: Guessing "other"
+
+📤 Submitting answers...
+
+📊 Result: Score: 1/1 - Level 4 unlocked!
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 8 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "Its discovery, therefore, in the Casa Grande would be important; but no trace of it can be found. The walls are composed of huge blocks of earth, 3 to..."
+
+💡 Hints:
+   1.
+        6 letters, starts with "m"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 248 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=6, first='m', last='null'
+   Matching candidates: mother, motion, matter (3 total)
+   Blank 1: Guessing "mother"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 256 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "found"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 257 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "stood"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 9 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "Its discovery, therefore, in the Casa Grande would be important; but no trace of it can be found. The walls are composed of huge blocks of earth, 3 to..."
+
+💡 Hints:
+   1.
+        5 letters, starts with "a"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 248 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=5, first='a', last='null'
+   Matching candidates: about, after, again (3 total)
+   Blank 1: Guessing "about"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 256 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "small"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 257 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "always"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 10 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "It will be noticed that the builders were unable to keep straight courses, and that occasional thin courses were put in to bring the wall up to a gene..."
+
+💡 Hints:
+   1.
+        8 letters, starts with "p"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 253 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=8, first='p', last='null'
+   Matching candidates: possible, perceive (2 total)
+   Blank 1: Guessing "possible"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 262 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "little"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 264 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "never"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 11 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "These connections seem to have been by open courts inclosed by walls and not by continuous buildings. The court east of the ruin is well marked by the..."
+
+💡 Hints:
+   1.
+        11 letters, starts with "r"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 276 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=11, first='r', last='null'
+   Matching candidates:  (0 total)
+   Blank 1: Guessing "the"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 283 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "found"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 285 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "thought"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 12 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "These walls doubtless formed part of the original structure and were probably erected with it; otherwise the corners of the main..."
+
+💡 Hints:
+   1.
+        9 letters, starts with "s"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 243 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=9, first='s', last='null'
+   Matching candidates: something, sometimes, sensation, substance (4 total)
+   Blank 1: Guessing "something"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 251 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "heart"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 253 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "stood"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 13 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "The long north and south ridge which forms the southeastern corner of the area, with other ridges extending westward, is quite wide on top, wide enoug..."
+
+💡 Hints:
+   1.
+        11 letters, starts with "a"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 273 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=11, first='a', last='null'
+   Matching candidates:  (0 total)
+   Blank 1: Guessing "the"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 280 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "little"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 282 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "turned"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 14 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "The method adopted was probably the erection of a framework of canes or light poles, woven with reeds or grass, forming two parallel surfaces or..."
+
+💡 Hints:
+   1.
+        6 letters, starts with "p"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 274 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=6, first='p', last='null'
+   Matching candidates: people (1 total)
+   Blank 1: Guessing "people"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 281 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "world"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 283 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "became"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 15 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "These blocks occupy the whole thickness of the setback at the second roof level--perhaps an indication that the upper story was added after the buildi..."
+
+💡 Hints:
+   1.
+        4 letters, starts with "r"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 303 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=4, first='r', last='null'
+   Matching candidates:  (0 total)
+   Blank 1: Guessing "the"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 310 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "little"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 312 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "seemed"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+
+
+==================================================
+📚 PASSAGE 16 (Level ~0)
+==================================================
+
+📖 Casa Grande Ruin by Cosmos Mindeleff
+📊 Level 4 • 1 blank
+
+📝 Passage preview: "Furthermore, the outside of the northern wall of the 
+        
+          
+          
+            💬
+          
+         room, above the second roof le..."
+
+💡 Hints:
+   1.
+        6 letters, starts with "m"
+
+🔲 Found 1 blank(s) to fill
+
+🤖 Asking Gemma 3n E4B to guess the words...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 237 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Hint parsed: length=6, first='m', last='null'
+   Matching candidates: mother, motion, matter (3 total)
+   Blank 1: Guessing "mother"
+
+📤 Submitting answers...
+
+🔄 Retry attempt 1/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 244 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "heart"
+
+🔄 Retry attempt 2/2
+   1 blank(s) still need answers
+🤖 Asking AI for retry guesses...
+
+   API error: {"error":{"message":"Prompt tokens limit exceeded: 246 > 133. To increase, visit https://openrouter.ai/settings/keys and create a key with a higher monthly limit","code":402,"metadata":{"provider_name":null}},"user_id":"org_2worPdeN0agOMeP1sCU4WGCwm2l"}
+   Trying: "thought"
+
+⏭️ Skipping this passage after retries...
+
+📊 Result: Score: 0/1 - Failed (need 1 correct)
+
+⏳ Loading next passage...
+   Waiting for next button...
+✓ Next passage loaded
+

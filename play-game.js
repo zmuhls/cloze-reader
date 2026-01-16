@@ -23,15 +23,21 @@ if (!OPENROUTER_API_KEY) {
 /**
  * Use Gemma 3-12b to guess the missing words based on passage context
  * Optimized for low latency with strong contextual reasoning
+ * Supports enhanced hints from chat queries at level 3+
  */
-async function aiGuessWords(passageText, hints, numBlanks, previousGuesses = []) {
+async function aiGuessWords(passageText, hints, numBlanks, previousGuesses = [], chatResponses = []) {
   const previousGuessesText = previousGuesses.length > 0
     ? `\nDo NOT use these words again: ${previousGuesses.flat().join(', ')}`
     : '';
 
   // Parse hints to extract explicit constraints
   const parsedConstraints = hints.map((hint, i) => {
-    return `Word ${i + 1}: ${hint}`;
+    let constraint = `Word ${i + 1}: ${hint}`;
+    // Add chat response context if available
+    if (chatResponses[i]) {
+      constraint += ` [Context: ${chatResponses[i]}]`;
+    }
+    return constraint;
   }).join(' | ');
 
   // Truncate passage to reduce token count
@@ -39,7 +45,7 @@ async function aiGuessWords(passageText, hints, numBlanks, previousGuesses = [])
     ? passageText.substring(0, 250) + '...'
     : passageText;
 
-  const prompt = `Complete the blanks using context clues from the passage. Prioritize passage context over hints.${previousGuessesText}
+  const prompt = `Complete the blanks using the passage and the constraint hints. The hint constraints are strict requirements - respect the word length and letter positions above all else.${previousGuessesText}
 
 PASSAGE: ${truncatedPassage}
 
@@ -104,6 +110,146 @@ Answer format: ["word1", "word2"]`;
     console.error(`   AI request failed: ${error.message}`);
     return null;
   }
+}
+
+/**
+ * Get enhanced hints from chat interface for more context at level 3+
+ * Rotates through different question types for variety
+ */
+async function getEnhancedHintsFromChat(page, numBlanks) {
+  const responses = [];
+  const questionTypes = ['part_of_speech', 'word_category', 'sentence_role', 'synonym'];
+
+  for (let i = 0; i < numBlanks; i++) {
+    try {
+      // Click on the blank input to focus it
+      const inputs = await page.$$('.cloze-input');
+      if (inputs.length > i) {
+        await inputs[i].click();
+      }
+
+      // Wait a moment for focus
+      await page.waitForTimeout(150);
+
+      // Try to find and click a chat button near the blank
+      const chatBtnClicked = await page.evaluate((blankIdx) => {
+        // Look for chat button with data-blank-index
+        const btn = document.querySelector(`button[data-blank-index="${blankIdx}"].chat-button`);
+        if (btn) {
+          btn.click();
+          return true;
+        }
+        // Fallback: click any chat button
+        const anyBtn = document.querySelector('.chat-button');
+        if (anyBtn) {
+          anyBtn.click();
+          return true;
+        }
+        return false;
+      }, i);
+
+      if (!chatBtnClicked) {
+        responses.push('');
+        continue;
+      }
+
+      // Wait for modal to appear and be visible
+      await page.waitForFunction(() => {
+        const modal = document.getElementById('chat-modal');
+        return modal && !modal.classList.contains('hidden');
+      }, { timeout: 3000 }).catch(() => null);
+
+      // Small delay for modal to fully render
+      await page.waitForTimeout(300);
+
+      // Select a question from dropdown
+      const questionType = questionTypes[i % questionTypes.length];
+
+      // Set dropdown value using evaluate
+      const dropdownClicked = await page.evaluate((qType) => {
+        const dropdown = document.getElementById('question-dropdown');
+        if (!dropdown) return false;
+
+        // Find option with matching value
+        let found = false;
+        for (const option of dropdown.options) {
+          if (option.value === qType && !option.disabled) {
+            dropdown.value = qType;
+            found = true;
+            break;
+          }
+        }
+
+        if (found) {
+          // Trigger change event
+          const event = new Event('change', { bubbles: true });
+          dropdown.dispatchEvent(event);
+          return true;
+        }
+        return false;
+      }, questionType);
+
+      if (!dropdownClicked) {
+        responses.push('');
+        const closeBtn = await page.$('#chat-close');
+        if (closeBtn) await closeBtn.click();
+        continue;
+      }
+
+      // Wait for AI response (look for typing indicator to appear and disappear)
+      await page.waitForTimeout(500); // Give it time to show typing indicator
+
+      // Wait for response to appear (wait for non-typing-indicator message)
+      const maxWaitTime = 5000;
+      const startTime = Date.now();
+      let response = '';
+
+      while (Date.now() - startTime < maxWaitTime) {
+        response = await page.evaluate(() => {
+          // Get the last message that's not a typing indicator
+          const messages = document.querySelectorAll('#chat-messages > div:not(#typing-indicator)');
+          if (messages.length > 0) {
+            // Find the last Cluemaster message
+            for (let i = messages.length - 1; i >= 0; i--) {
+              const msg = messages[i];
+              const text = msg.textContent;
+              if (text.includes('Cluemaster') || (!text.includes('You') && text.trim().length > 10)) {
+                // Extract just the message content, not the "Cluemaster" label
+                const lines = text.split('\n');
+                if (lines.length > 1) {
+                  return lines.slice(1).join(' ').trim();
+                }
+                return text;
+              }
+            }
+          }
+          return '';
+        });
+
+        if (response && response.length > 10) {
+          break;
+        }
+
+        await page.waitForTimeout(200);
+      }
+
+      responses.push(response || '');
+      console.log(`   ✓ Got response for word ${i + 1}`);
+
+      // Close chat modal
+      const closeBtn = await page.$('#chat-close');
+      if (closeBtn) {
+        await closeBtn.click();
+        await page.waitForTimeout(100);
+      }
+
+    } catch (error) {
+      console.log(`   ⚠️  Error getting chat hint for word ${i + 1}: ${error.message}`);
+      responses.push('');
+    }
+  }
+
+  return responses;
 }
 
 async function playGame() {
@@ -212,15 +358,21 @@ async function playGame() {
 
 async function playRound(page) {
   // Parallelize DOM operations to reduce latency
-  const [bookInfo, roundInfo, passageText] = await Promise.all([
+  const [bookInfo, roundInfo, passageText, levelInfo] = await Promise.all([
     page.textContent('#book-info'),
     page.textContent('#round-info'),
-    page.textContent('#passage-content')
+    page.textContent('#passage-content'),
+    page.textContent('[class*="level"]').catch(() => 'Level 1')
   ]);
 
   console.log(`📖 ${bookInfo.trim()}`);
   console.log(`📊 ${roundInfo.trim()}\n`);
   console.log(`📝 Passage preview: "${passageText.substring(0, 150).trim()}..."\n`);
+
+  // Extract current level
+  const levelMatch = levelInfo.match(/(\d+)/);
+  const currentLevel = levelMatch ? parseInt(levelMatch[1]) : 1;
+  console.log(`🎯 Current level: ${currentLevel}\n`);
 
   // Show hints to help us guess (click if button exists, then get hints)
   const [hintBtn, hints] = await Promise.all([
@@ -253,6 +405,18 @@ async function playRound(page) {
     console.log('');
   }
 
+  // At level 3+, use chat queries to supplement limited hints
+  let chatResponses = [];
+  if (currentLevel >= 3 && hints.length > 0) {
+    console.log('🔄 Level 3+ detected - using chat queries to enhance hints...\n');
+    chatResponses = await getEnhancedHintsFromChat(page, hints.length);
+    if (chatResponses.length > 0) {
+      console.log('💬 Chat responses:');
+      chatResponses.forEach((response, i) => console.log(`   Word ${i + 1}: ${response.substring(0, 100)}`));
+      console.log('');
+    }
+  }
+
   // Parallelize getting inputs and passage HTML
   const [inputs, passageHtml] = await Promise.all([
     page.$$('.cloze-input'),
@@ -268,9 +432,9 @@ async function playRound(page) {
   // Strip remaining HTML tags
   passageForAI = passageForAI.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Use AI to guess the words
+  // Use AI to guess the words (with chat context if available)
   console.log('🤖 Asking Gemma 3 12B to guess the words...\n');
-  const aiGuesses = await aiGuessWords(passageForAI, hints, inputs.length);
+  const aiGuesses = await aiGuessWords(passageForAI, hints, inputs.length, [], chatResponses);
 
   // Track initial guesses for retry logic
   const initialGuesses = [];
@@ -388,7 +552,7 @@ async function playRound(page) {
       );
 
       console.log('🤖 Asking AI for retry guesses...\n');
-      const retryGuesses = await aiGuessWords(updatedPassage, remainingHints, retryInputs.length, previousGuessesForRetry);
+      const retryGuesses = await aiGuessWords(updatedPassage, remainingHints, retryInputs.length, previousGuessesForRetry, []);
 
       // Fill in retry guesses and track them
       const retryFillPromises = [];
@@ -506,12 +670,12 @@ function extractGuessFromHint(hint) {
     3: ['the', 'and', 'but', 'for', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'are', 'his', 'has', 'its', 'man', 'own', 'day', 'get', 'how', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'let', 'put', 'say', 'she', 'too', 'use'],
     4: ['that', 'with', 'have', 'this', 'will', 'your', 'from', 'they', 'been', 'were', 'said', 'each', 'made', 'find', 'work', 'part', 'take', 'come', 'such', 'then', 'life', 'hand', 'mind', 'long', 'only', 'seem', 'even', 'must', 'most', 'also', 'know', 'upon', 'good', 'back', 'just', 'like', 'make', 'more', 'much', 'over', 'some', 'than', 'time', 'very', 'well', 'when', 'year', 'able', 'best', 'both', 'call', 'came', 'case', 'does', 'done', 'down', 'face', 'fact', 'feel', 'felt', 'full', 'gave', 'give', 'goes', 'gone', 'here', 'high', 'home', 'kept', 'kind', 'last', 'left', 'less', 'lost', 'love', 'main', 'mean', 'meet', 'move', 'name', 'need', 'next', 'once', 'open', 'page', 'past', 'plan', 'read', 'real', 'rest', 'room', 'rule', 'same', 'self', 'sent', 'show', 'side', 'sort', 'stay', 'stop', 'sure', 'talk', 'tell', 'tend', 'term', 'test', 'text', 'than', 'thee', 'them', 'thou', 'thus', 'took', 'town', 'tree', 'true', 'turn', 'type', 'unit', 'used', 'view', 'want', 'warm', 'wash', 'went', 'what', 'whom', 'wide', 'wife', 'wild', 'wish', 'word', 'wore', 'yard', 'yeah', 'year'],
     5: ['their', 'would', 'there', 'could', 'other', 'about', 'great', 'after', 'which', 'these', 'where', 'being', 'those', 'years', 'since', 'world', 'state', 'place', 'while', 'still', 'found', 'every', 'under', 'never', 'might', 'think', 'again', 'human', 'small', 'heart', 'right', 'night', 'light', 'first', 'power', 'whole', 'often', 'order', 'early', 'young', 'white', 'black', 'green', 'ready', 'clear', 'fresh', 'quiet', 'sweet', 'field', 'floor', 'grace', 'grand', 'guard', 'hands', 'heard', 'heavy', 'horse', 'house', 'ideal', 'inner', 'known', 'large', 'later', 'learn', 'least', 'leave', 'level', 'limit', 'lived', 'lives', 'local', 'lower', 'lucky', 'magic', 'major', 'maker', 'march', 'match', 'maybe', 'means', 'meant', 'metal', 'midst', 'moral', 'motor', 'mouth', 'moved', 'music', 'needs', 'noble', 'north', 'noted', 'novel', 'ocean', 'offer', 'older', 'opens', 'organ', 'owned', 'owner', 'paint', 'panel', 'party', 'peace', 'pearl', 'penny', 'phase', 'phone', 'piece', 'pilot', 'pitch', 'plain', 'plane', 'point', 'pound', 'price', 'pride', 'prime', 'print', 'prior', 'prize', 'proof', 'proud', 'queen', 'quick', 'quite', 'radio', 'raise', 'range', 'rapid', 'reach', 'react', 'realm', 'rebel', 'refer', 'reply', 'rider', 'ridge', 'right', 'river', 'rough', 'round', 'route', 'royal', 'rural', 'saint', 'scene', 'scope', 'score', 'sense', 'serve', 'seven', 'shade', 'shake', 'shall', 'shape', 'share', 'sharp', 'sheet', 'shelf', 'shell', 'shift', 'shine', 'shiny', 'shirt', 'shock', 'shoot', 'shore', 'short', 'shown', 'sight', 'sixth', 'sized', 'skill', 'sleep', 'smile', 'smoke', 'snake', 'solid', 'sound', 'south', 'space', 'speak', 'speed', 'spell', 'spend', 'spent', 'spent', 'spoke', 'sport', 'squad', 'staff', 'stage', 'stair', 'stamp', 'stand', 'start', 'state', 'steal', 'steam', 'steel', 'steep', 'steer', 'stick', 'stiff', 'sting', 'stock', 'stone', 'stood', 'store', 'storm', 'story', 'stove', 'sugar', 'suite', 'super', 'sweet', 'swift', 'swing', 'sword', 'swore', 'table', 'teach', 'teeth', 'tempo', 'tends', 'tenth', 'terms', 'tests', 'thank', 'theft', 'their', 'theme', 'there', 'these', 'thick', 'thief', 'thing', 'think', 'third', 'thorn', 'those', 'thumb', 'tight', 'times', 'tired', 'title', 'today', 'token', 'topic', 'total', 'touch', 'tough', 'tower', 'track', 'trade', 'trail', 'train', 'trash', 'treat', 'trend', 'trial', 'tribe', 'trick', 'tried', 'tries', 'troop', 'truck', 'truly', 'trunk', 'trust', 'truth', 'twice', 'uncle', 'under', 'union', 'unity', 'until', 'upper', 'upset', 'urban', 'usage', 'usual', 'utter', 'value', 'vapor', 'vault', 'venue', 'verse', 'video', 'villa', 'virus', 'visit', 'vital', 'vivid', 'vocal', 'voice', 'voted', 'voter', 'vowel', 'wages', 'wagon', 'waist', 'wakes', 'walks', 'walls', 'wants', 'wards', 'wares', 'warns', 'waste', 'watch', 'water', 'waved', 'waver', 'waves', 'weary', 'weave', 'weird', 'wells', 'whale', 'wheat', 'wheel', 'where', 'which', 'while', 'white', 'whole', 'whose', 'widen', 'wider', 'widow', 'wield', 'woman', 'women', 'woods', 'words', 'works', 'world', 'worry', 'worse', 'worst', 'worth', 'would', 'wound', 'woven', 'wrath', 'wreck', 'wrist', 'write', 'wrong', 'yield', 'young', 'yours', 'youth', 'zones'],
-    6: ['should', 'people', 'before', 'little', 'mother', 'father', 'always', 'though', 'nature', 'itself', 'things', 'spirit', 'reason', 'rather', 'become', 'within', 'toward', 'beauty', 'motion', 'matter', 'action', 'across', 'actual', 'advice', 'affair', 'afford', 'afraid', 'agency', 'agreed', 'almost', 'amount', 'answer', 'anyone', 'appeal', 'appear', 'around', 'artist', 'aspect', 'assign', 'assist', 'assume', 'attack', 'attend', 'author', 'avenue', 'backed', 'barely', 'battle', 'became', 'behind', 'belief', 'belong', 'bishop', 'bitter', 'border', 'bottle', 'bottom', 'bought', 'branch', 'breath', 'bridge', 'bright', 'broken', 'budget', 'burden', 'buried', 'button', 'called', 'camera', 'cancel', 'candle', 'carbon', 'career', 'caring', 'castle', 'caught', 'caused', 'center', 'cereal', 'chance', 'change', 'chapel', 'charge', 'choice', 'choose', 'chosen', 'church', 'circle', 'circus', 'client', 'coffee', 'column', 'combat', 'coming', 'common', 'comply', 'copper', 'corner', 'cotton', 'couple', 'course', 'cousin', 'create', 'credit', 'crisis', 'cruise', 'custom', 'damage', 'danger', 'dating', 'dealer', 'debate', 'decade', 'decent', 'decide', 'defeat', 'defend', 'define', 'degree', 'demand', 'denial', 'depend', 'deploy', 'deputy', 'desert', 'design', 'desire', 'detail', 'detect', 'device', 'devote', 'dialog', 'diesel', 'differ', 'dinner', 'direct', 'divide', 'doctor', 'dollar', 'domain', 'donate', 'double', 'dragon', 'driven', 'driver', 'drives', 'drowsy', 'during', 'earned', 'easier', 'easily', 'easter', 'eating', 'editor', 'effort', 'eighth', 'either', 'eleven', 'empire', 'employ', 'enable', 'ending', 'energy', 'engine', 'enrich', 'enough', 'ensure', 'entire', 'entity', 'envied', 'equity', 'errand', 'escape', 'estate', 'ethics', 'ethnic', 'europe', 'events', 'evolve', 'exceed', 'except', 'excuse', 'expand', 'expect', 'expert', 'expire', 'export', 'expose', 'extent', 'fabric', 'facing', 'factor', 'failed', 'fairer', 'fairly', 'fallen', 'family', 'famous', 'farmer', 'fasted', 'father', 'faulty', 'feared', 'fellow', 'female', 'fenced', 'fender', 'ferret', 'fester', 'feudal', 'figure', 'filled', 'filler', 'filmed', 'filter', 'finale', 'finger', 'finish', 'firing', 'firmly', 'fiscal', 'fished', 'fisher', 'fitted', 'fixing', 'flamed', 'flange', 'flared', 'flawed', 'fleced', 'fleece', 'flight', 'flimsy', 'flinch', 'floats', 'flock', 'floods', 'floral', 'florid', 'flours', 'flowed', 'fluent', 'foamed', 'foible', 'fogged', 'folded', 'folder', 'follow', 'fondle', 'fooled', 'forage', 'forbid', 'forced', 'forest', 'forget', 'forgot', 'forked', 'formal', 'format', 'formed', 'former', 'foster', 'fought', 'fouled', 'founded', 'founts', 'fourth', 'framed', 'france', 'fraught', 'frayed', 'freeze', 'french', 'frenzy', 'friday', 'friend', 'fright', 'frisky', 'frizzy', 'frosty', 'frozen', 'frugal', 'fruit', 'fudged', 'fueled', 'fulfil', 'full', 'funnel', 'funky', 'fusion', 'future', 'gadget', 'gaiety', 'gained', 'galaxy', 'galled', 'gallery', 'galley', 'gallon', 'gallop', 'gander', 'garage', 'garden', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garlic', 'garment', 'garner', 'garnet', 'garnish', 'garrote', 'gaseous', 'gashed', 'gasket', 'gasped', 'gather', 'gauged', 'gauges', 'gauged', 'gauntlet', 'gavage', 'gaveled', 'gavels', 'gawky', 'gazelle', 'gazers', 'gazette', 'geared', 'geared', 'geese', 'gelded', 'gelees', 'gelled', 'gelous', 'gemmed', 'general', 'genesis', 'genetic', 'genial', 'genius', 'genome', 'gently', 'gentry', 'genuine', 'genus', 'geode', 'german', 'germs', 'gerontic', 'gestate', 'gesture', 'getups', 'ghastly', 'gherao', 'ghetto', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghibli', 'ghost', 'ghosted', 'ghosts', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly', 'ghastly'],
-    7: ['another', 'because', 'through', 'thought', 'however', 'between', 'nothing', 'against', 'herself', 'himself', 'perhaps', 'present', 'general', 'whether', 'already', 'certain', 'subject', 'feeling', 'example', 'forward', 'hundred', 'include', 'kitchen', 'natural', 'neither', 'october', 'pattern', 'problem', 'program', 'provide', 'purpose', 'science', 'service', 'society', 'special', 'station', 'student', 'surface', 'teacher', 'tonight', 'totally', 'traffic', 'various', 'weather', 'welcome', 'western', 'without', 'working', 'written', 'ability', 'academy', 'account', 'achieve', 'address', 'advance', 'ancient', 'anxiety', 'applied', 'arrange', 'arrival', 'article', 'average', 'backing', 'baptist', 'battery', 'bearing', 'beating', 'bedroom', 'believe', 'beneath', 'benefit', 'blessed', 'blinded', 'blinked', 'blister', 'bloated', 'blocked', 'blossom', 'blotted', 'blotted', 'blotted', 'blotter', 'blowing', 'blubber', 'bludgeon', 'blueing', 'bluffing', 'blurred', 'boarded', 'boarder', 'boards', 'boasted', 'boaters', 'boating', 'bobsled', 'bodied', 'bodily', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'bodkins', 'boggled', 'bogging', 'boggled', 'boggles', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'boggled', 'bogging', 'boggiest', 'boggily', 'bogginess', 'bogging', 'boggish', 'boggishly', 'boggishness', 'boggles', 'bogglesome', 'boggley', 'boggly', 'boggy', 'boghland', 'boghlands', 'boghog', 'boghogs', 'boghogger', 'boghoggers', 'boghog', 'boghogs', 'boghole', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes', 'bogholes'],
-    8: ['together', 'children', 'although', 'possible', 'anything', 'thousand', 'question', 'movement', 'absolute', 'relation', 'sensible', 'perceive', 'remember', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction', 'reaction'],
-    9: ['something', 'important', 'different', 'therefore', 'according', 'sometimes', 'knowledge', 'necessary', 'beautiful', 'existence', 'sensation', 'universal', 'condition', 'principle', 'intellect', 'substance', 'testimony', 'community', 'following', 'beginning', 'agreement', 'character', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something', 'something'],
-    10: ['themselves', 'everything', 'experience', 'understand', 'perception', 'intelligence', 'imagination', 'contemplation', 'connection', 'generation', 'conclusion', 'expression', 'particularly', 'everything', 'everything', 'everything', 'everything', 'everything', 'everything', 'everything', 'everything'],
-    11: ['remembrance', 'acknowledge', 'approaching', 'association', 'imagination', 'immediately', 'recognition', 'requirement', 'responsible', 'temperature', 'acknowledge'],
+    6: ['should', 'people', 'before', 'little', 'mother', 'father', 'always', 'though', 'nature', 'itself', 'things', 'spirit', 'reason', 'rather', 'become', 'within', 'toward', 'beauty', 'motion', 'matter', 'action', 'across', 'actual', 'advice', 'affair', 'afford', 'afraid', 'agency', 'agreed', 'almost', 'amount', 'answer', 'anyone', 'appeal', 'appear', 'around', 'artist', 'aspect', 'assign', 'assist', 'assume', 'attack', 'attend', 'author', 'avenue', 'backed', 'barely', 'battle', 'became', 'behind', 'belief', 'belong', 'bishop', 'bitter', 'border', 'bottle', 'bottom', 'bought', 'branch', 'breath', 'bridge', 'bright', 'broken', 'budget', 'burden', 'buried', 'button', 'called', 'camera', 'cancel', 'candle', 'carbon', 'career', 'caring', 'castle', 'caught', 'caused', 'center', 'cereal', 'chance', 'change', 'chapel', 'charge', 'choice', 'choose', 'chosen', 'church', 'circle', 'circus', 'client', 'coffee', 'column', 'combat', 'coming', 'common', 'comply', 'copper', 'corner', 'cotton', 'couple', 'course', 'cousin', 'create', 'credit', 'crisis', 'cruise', 'custom', 'damage', 'danger', 'dating', 'dealer', 'debate', 'decade', 'decent', 'decide', 'defeat', 'defend', 'define', 'degree', 'demand', 'denial', 'depend', 'deploy', 'deputy', 'desert', 'design', 'desire', 'detail', 'detect', 'device', 'devote', 'dialog', 'differ', 'dinner', 'direct', 'divide', 'doctor', 'dollar', 'domain', 'donate', 'double', 'dragon', 'driven', 'driver', 'drives', 'during', 'earned', 'easier', 'easily', 'eating', 'editor', 'effort', 'eighth', 'either', 'eleven', 'empire', 'employ', 'enable', 'ending', 'energy', 'engine', 'enough', 'ensure', 'entire', 'entity', 'equity', 'escape', 'estate', 'ethics', 'ethnic', 'events', 'evolve', 'exceed', 'except', 'excuse', 'expand', 'expect', 'expert', 'expire', 'export', 'expose', 'extent', 'fabric', 'facing', 'factor', 'failed', 'fairly', 'fallen', 'family', 'famous', 'farmer', 'father', 'faulty', 'feared', 'fellow', 'female', 'figure', 'filled', 'filmed', 'filter', 'finale', 'finger', 'finish', 'firing', 'firmly', 'fiscal', 'fitted', 'fixing', 'flight', 'flimsy', 'floral', 'flower', 'flying', 'folded', 'folder', 'follow', 'forced', 'forest', 'forget', 'forgot', 'forked', 'formal', 'format', 'formed', 'former', 'foster', 'fought', 'fourth', 'french', 'frenzy', 'friday', 'friend', 'fright', 'frozen', 'future', 'gained', 'galaxy', 'galled', 'gallery', 'galley', 'gallon', 'garage', 'garden', 'garlic', 'garment', 'gasped', 'gather', 'gauged', 'gawked', 'gazed', 'geared', 'gender', 'gentle', 'german', 'gifted', 'ginger', 'glance', 'glared', 'glassy', 'glazed', 'global', 'gloomy', 'glossy', 'gloved', 'glowed', 'golden', 'golfed', 'gossip', 'govern', 'gowned', 'graced', 'graded', 'grained', 'grasped', 'grassy', 'grated', 'gravel', 'graven', 'grayer', 'grazed', 'grease', 'greasy', 'greeted', 'griddle', 'grieved', 'grille', 'grinned', 'gripped', 'groaned', 'grocer', 'groomed', 'grooved', 'groped', 'grossed', 'grouped', 'groused', 'grovel', 'growled', 'growth', 'grudge', 'grumpy', 'guided', 'guilty', 'gulped', 'gummed', 'gunned', 'gutted', 'gusted'],
+    7: ['another', 'because', 'through', 'thought', 'however', 'between', 'nothing', 'against', 'herself', 'himself', 'perhaps', 'present', 'general', 'whether', 'already', 'certain', 'subject', 'feeling', 'example', 'forward', 'hundred', 'include', 'kitchen', 'natural', 'neither', 'october', 'pattern', 'problem', 'program', 'provide', 'purpose', 'science', 'service', 'society', 'special', 'station', 'student', 'surface', 'teacher', 'tonight', 'totally', 'traffic', 'various', 'weather', 'welcome', 'western', 'without', 'working', 'written', 'ability', 'academy', 'account', 'achieve', 'address', 'advance', 'ancient', 'anxiety', 'applied', 'arrange', 'arrival', 'article', 'average', 'backing', 'battery', 'bearing', 'beating', 'bedroom', 'believe', 'beneath', 'benefit', 'blinded', 'blister', 'blocked', 'blossom', 'blowing', 'blurred', 'boarded', 'boating', 'bodily', 'boiling', 'bolster', 'bonfire', 'booking', 'booming', 'borders', 'bottled', 'bottoms', 'bounced', 'bounded', 'bracket', 'bracing', 'braided', 'braised', 'branded', 'branched', 'braving', 'braying', 'breach', 'breaker', 'breaths', 'breeder', 'briefly', 'brought', 'browser', 'bruised', 'brushed', 'bubbled', 'buckets', 'buckled', 'budding', 'buffalo', 'buffets', 'buggers', 'builder', 'bulging', 'bullied', 'bullion', 'bumbled', 'bundled', 'bungled', 'buoying', 'burdened', 'burgled', 'burning', 'burrows', 'bursted', 'bustled', 'butcher', 'buttons', 'buzzing', 'cabinet', 'cabling', 'caching', 'cackling', 'cadence', 'cadmium', 'caesura', 'cafeteria', 'caffeine', 'cagiest', 'cakiest', 'calcify', 'caldera', 'caldron', 'calends', 'caliper', 'calling', 'callous', 'calmest', 'calming', 'calories', 'calumny', 'calving', 'calypso', 'cambium', 'cambrel', 'cambric', 'camelot', 'cameras', 'cameron', 'cameoes', 'cameras', 'camphor', 'camping', 'campion', 'camcord', 'campos', 'canaled', 'canapes', 'canards', 'canasta', 'cancels', 'candela', 'candied', 'candies', 'candler', 'candors', 'candour', 'candyng', 'canelaw', 'canines', 'cankers', 'cannery', 'canning', 'cannons', 'canoes', 'canoers', 'canomile', 'canonic', 'canonly', 'canopat', 'canoped', 'canopes', 'canopus', 'cantala', 'cantals', 'cantant', 'cantata', 'cantdog', 'cantels', 'canters', 'cantful', 'cantier', 'canties', 'cantily', 'canting', 'cantled', 'cantles', 'cantoff', 'cantona', 'cantoon', 'cantors', 'cantrap', 'cantred', 'cantrip', 'cantual', 'canular', 'canulas', 'canulae', 'canutch', 'canvas'],
+    8: ['together', 'children', 'although', 'possible', 'anything', 'thousand', 'question', 'movement', 'absolute', 'relation', 'sensible', 'perceive', 'remember', 'language', 'personal', 'physical', 'response', 'yourself', 'argument', 'material', 'national', 'property', 'practice', 'analysis', 'interest', 'decision', 'business', 'approach', 'standard', 'economic', 'activity', 'calendar', 'document', 'judgment', 'majority', 'teaching', 'planning', 'training', 'purchase', 'research', 'evidence', 'february', 'december', 'november', 'tendency', 'strength', 'straight', 'supposed', 'shoulder', 'courtesy', 'security', 'yourself', 'magazine', 'hospital', 'strength', 'yourself'],
+    9: ['something', 'important', 'different', 'therefore', 'according', 'sometimes', 'knowledge', 'necessary', 'beautiful', 'existence', 'universal', 'condition', 'principle', 'community', 'following', 'beginning', 'agreement', 'character', 'adventure', 'centuries', 'furniture', 'machinery', 'narrative', 'happening', 'dimension', 'treatment', 'statement', 'procedure', 'mechanism', 'structure', 'education', 'tradition', 'knowledge', 'beautiful', 'character'],
+    10: ['themselves', 'everything', 'experience', 'understand', 'perception', 'intelligence', 'imagination', 'connection', 'generation', 'conclusion', 'expression', 'absolutely', 'particular', 'completely', 'literally', 'apparently', 'constantly', 'especially', 'atmosphere', 'background', 'conscience', 'meditation', 'reflection', 'limitation', 'protection', 'production', 'resolution'],
+    11: ['remembrance', 'acknowledge', 'approaching', 'association', 'immediately', 'recognition', 'requirement', 'responsible', 'temperature', 'independent', 'substantial', 'development', 'information', 'comfortable', 'agriculture', 'environment', 'distinguish', 'observation', 'consequence', 'celebration', 'inspiration'],
   };
 
   // Filter by criteria
@@ -524,9 +688,8 @@ function extractGuessFromHint(hint) {
     candidates = candidates.filter(w => w[w.length - 1] === last);
   }
 
-  console.log(`   Matching candidates: ${candidates.slice(0, 5).join(', ')}${candidates.length > 5 ? '...' : ''} (${candidates.length} total)`);
-
   if (candidates.length > 0) {
+    console.log(`   Hint constraints (${len}L${first ? `,start:${first}` : ''}${last ? `,end:${last}` : ''}): ${candidates.slice(0, 3).join(', ')}${candidates.length > 3 ? '...' : ''}`);
     return candidates[0];
   }
 

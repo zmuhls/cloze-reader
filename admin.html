@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloze Reader Admin - Analytics Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background-color: #f8f5f0;
+    }
+    .card {
+      background: white;
+      border: 1px solid #e5e0d8;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #2c2826;
+    }
+    .stat-label {
+      font-size: 0.875rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #e5e0d8;
+    }
+    th {
+      background-color: #f8f5f0;
+      font-weight: 600;
+      color: #2c2826;
+    }
+    tr:hover {
+      background-color: #faf9f7;
+    }
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      color: #666;
+    }
+    .error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+  <div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">Cloze Reader Analytics</h1>
+      <p class="text-gray-600">Track gameplay patterns, word difficulty, and book usage</p>
+      <div class="mt-4 flex gap-4">
+        <a href="./" class="text-blue-600 hover:text-blue-800">&larr; Back to Game</a>
+        <button id="export-btn" class="text-blue-600 hover:text-blue-800">Export JSON</button>
+      </div>
+    </header>
+
+    <!-- Summary Stats -->
+    <section id="summary-section" class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Overview</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="card p-6 text-center">
+          <div id="stat-passages" class="stat-value">-</div>
+          <div class="stat-label">Total Passages</div>
+        </div>
+        <div class="card p-6 text-center">
+          <div id="stat-sessions" class="stat-value">-</div>
+          <div class="stat-label">Unique Sessions</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Word Difficulty -->
+
+    <!-- Popular Books -->
+    <section class="mb-8">
+      <div class="card">
+        <div class="p-4 border-b">
+          <h3 class="text-lg font-semibold">Popular Books</h3>
+          <p class="text-sm text-gray-500">Most frequently used in passages</p>
+        </div>
+        <div id="popular-books-table" class="overflow-x-auto">
+          <div class="loading">Loading...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Passages -->
+    <section class="mb-8">
+      <div class="card">
+        <div class="p-4 border-b flex justify-between items-center">
+          <div>
+            <h3 class="text-lg font-semibold">Recent Passages</h3>
+            <p class="text-sm text-gray-500">Last 50 passage attempts</p>
+          </div>
+          <select id="recent-count" class="border rounded px-3 py-1">
+            <option value="10">Last 10</option>
+            <option value="25">Last 25</option>
+            <option value="50" selected>Last 50</option>
+            <option value="100">Last 100</option>
+          </select>
+        </div>
+        <div id="recent-passages-table" class="overflow-x-auto">
+          <div class="loading">Loading...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Error display -->
+    <div id="error-container" class="hidden"></div>
+  </div>
+
+  <script>
+    // API base URL
+    const API_BASE = window.location.origin;
+
+    // Fetch summary data
+    async function loadSummary() {
+      try {
+        const response = await fetch(`${API_BASE}/api/analytics/summary`);
+        const data = await response.json();
+
+        if (data.success) {
+          const summary = data.data;
+
+          // Update stats
+          document.getElementById('stat-passages').textContent = summary.totalPassages || 0;
+          document.getElementById('stat-sessions').textContent = summary.totalSessions || 0;
+
+          // Render tables
+          renderBooksTable(summary.popularBooks || []);
+        } else {
+          showError('Failed to load summary: ' + (data.message || 'Unknown error'));
+        }
+      } catch (error) {
+        showError('Error loading summary: ' + error.message);
+      }
+    }
+
+    // Fetch recent passages
+    async function loadRecentPassages(count = 50) {
+      try {
+        const response = await fetch(`${API_BASE}/api/analytics/recent?count=${count}`);
+        const data = await response.json();
+
+        if (data.success) {
+          renderRecentPassages(data.passages || []);
+        } else {
+          showError('Failed to load recent passages');
+        }
+      } catch (error) {
+        showError('Error loading recent passages: ' + error.message);
+      }
+    }
+
+    // Render books table
+    function renderBooksTable(books) {
+      const container = document.getElementById('popular-books-table');
+
+      if (!books || books.length === 0) {
+        container.innerHTML = '<div class="p-4 text-center text-gray-500">No data yet</div>';
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Usage Count</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      books.forEach((book, index) => {
+        html += `
+          <tr>
+            <td class="text-gray-500">${index + 1}</td>
+            <td class="font-medium">${escapeHtml(book.title)}</td>
+            <td>${escapeHtml(book.author)}</td>
+            <td>${book.usageCount || 0}</td>
+          </tr>
+        `;
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    // Render recent passages
+    function renderRecentPassages(passages) {
+      const container = document.getElementById('recent-passages-table');
+
+      if (!passages || passages.length === 0) {
+        container.innerHTML = '<div class="p-4 text-center text-gray-500">No passages recorded yet</div>';
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Book</th>
+              <th>Level</th>
+              <th>Blanks</th>
+              <th>First Try</th>
+              <th>Hints</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      passages.forEach(passage => {
+        const timestamp = passage.timestamp ? new Date(passage.timestamp).toLocaleString() : '-';
+        const resultClass = passage.passed ? 'text-green-600' : 'text-red-600';
+        const resultText = passage.passed ? 'Passed' : 'Failed';
+
+        html += `
+          <tr>
+            <td class="text-sm text-gray-500">${timestamp}</td>
+            <td class="font-medium">${escapeHtml(passage.bookTitle || '-')}</td>
+            <td>${passage.level || '-'}</td>
+            <td>${passage.totalBlanks || '-'}</td>
+            <td>${passage.correctOnFirstTry || 0}/${passage.totalBlanks || 0}</td>
+            <td>${passage.totalHintsUsed || 0}</td>
+            <td class="${resultClass} font-medium">${resultText}</td>
+          </tr>
+        `;
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    // Export all data as JSON
+    async function exportData() {
+      try {
+        const response = await fetch(`${API_BASE}/api/analytics/export`);
+        const data = await response.json();
+
+        if (data.success) {
+          const blob = new Blob([JSON.stringify(data.passages, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `cloze-analytics-${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } else {
+          showError('Export failed: ' + (data.message || 'Unknown error'));
+        }
+      } catch (error) {
+        showError('Export error: ' + error.message);
+      }
+    }
+
+    // Show error message
+    function showError(message) {
+      const container = document.getElementById('error-container');
+      container.className = 'error';
+      container.textContent = message;
+      container.classList.remove('hidden');
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
+    // Event listeners
+    document.getElementById('export-btn').addEventListener('click', exportData);
+
+    document.getElementById('recent-count').addEventListener('change', (e) => {
+      loadRecentPassages(e.target.value);
+    });
+
+    // Initial load + auto-refresh every 10 seconds
+    loadSummary();
+    loadRecentPassages(50);
+    setInterval(() => {
+      loadSummary();
+      loadRecentPassages(document.getElementById('recent-count').value);
+    }, 10000);
+  </script>
+</body>
+</html>
