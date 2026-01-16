@@ -481,6 +481,9 @@ async function playRound(page) {
 
   console.log('\n📤 Submitting answers...');
 
+  // Give model time to "process" the answers before submission
+  await page.waitForTimeout(1500);
+
   // Get and click submit button (wait for it to be clickable)
   const submitBtn = await page.waitForSelector('#submit-btn:not(:disabled)', { timeout: 5000 }).catch(null);
   if (!submitBtn) {
@@ -494,6 +497,9 @@ async function playRound(page) {
     const resultEl = document.querySelector('#result');
     return resultEl && resultEl.textContent.trim().length > 0;
   }, { timeout: 10000 }).catch(() => null);
+
+  // Give backend time to fully process results before checking for retry
+  await page.waitForTimeout(1000);
 
   // Check if we need to retry (wrong answers)
   let maxRetries = 2; // Reduced from 3 to save API credits
@@ -512,6 +518,10 @@ async function playRound(page) {
     if (skipBtn) {
       retryCount++;
       console.log(`\n🔄 Retry attempt ${retryCount}/${maxRetries}`);
+
+      // Give model time to process the failed attempt before retrying
+      console.log('   ⏳ Allowing model to process failed attempt...');
+      await page.waitForTimeout(2500);
 
       // Get updated hints after retry
       const retryInputs = await page.$$('.cloze-input:not([disabled])');
@@ -582,12 +592,20 @@ async function playRound(page) {
       }
       await Promise.all(retryFillPromises);
 
+      // Give model time to process retry answers
+      console.log('\n   ⏳ Processing retry answers...');
+      await page.waitForTimeout(1500);
+
       // Submit again and wait for result dynamically
+      console.log('   📤 Submitting retry...');
       await submitBtn.click();
       await page.waitForFunction(() => {
         const resultEl = document.querySelector('#result');
         return resultEl && resultEl.textContent.trim().length > 0;
       }, { timeout: 10000 }).catch(() => null);
+
+      // Give backend time to process retry results
+      await page.waitForTimeout(1000);
     } else {
       break;
     }
@@ -603,6 +621,8 @@ async function playRound(page) {
       const resultEl = document.querySelector('#result');
       return resultEl && resultEl.textContent.trim().length > 0;
     }, { timeout: 5000 }).catch(() => null);
+    // Give UI time to settle after skip
+    await page.waitForTimeout(800);
   }
 
   // Get result
@@ -622,6 +642,10 @@ async function playRound(page) {
 
 async function waitForNextRound(page) {
   console.log('\n⏳ Loading next passage...');
+
+  // Brief pause between passages
+  console.log('   Taking a moment before next passage...');
+  await page.waitForTimeout(1200);
 
   // Wait for next button to become visible
   console.log('   Waiting for next button...');
