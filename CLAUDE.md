@@ -29,7 +29,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Test with local LLM: `http://localhost:8000?local=true` (requires LLM server on port 1234)
 - Enable debug mode: Add `?testMode=true` to URL for test runner interface
 - Browser console shows detailed logs for debugging (especially for skip button functionality)
-- **Automation testing**: `node play-game.js` - Playwright bot that plays the game using Gemma-12b via OpenRouter (requires OPENROUTER_API_KEY in .env)
+
+**Automation Testing:**
+- `node play-game.js` - Playwright bot that automates game play using Gemma-3-12b via OpenRouter
+  - Requires `OPENROUTER_API_KEY` in `.env`
+  - Configurable via constants: `GAME_URL`, `TARGET_LEVEL`, `MAX_RELOAD_CYCLES`
+  - Bot plays in headed mode (browser visible) for inspection
+  - Uses hint constraints and chat queries to improve guessing accuracy
+  - Implements retry logic with exponential backoff for failed answers
+  - Parallel DOM checks and Promise.allSettled for robust element detection
 
 ## Architecture Overview
 
@@ -138,6 +146,12 @@ This is a **vanilla JavaScript modular application** with a FastAPI backend serv
 - Enhanced touch targets for better mobile interaction
 - Responsive design adapts to various screen sizes
 - Content padding prevents overlap with sticky controls
+
+**Responsive Button Scaling:**
+- Chat button icons scale by viewport: mobile (28px) → tablet (30-32px) → desktop (28-32px)
+- Question/suggestion buttons in chat modal: 64px (mobile) → 56px (tablet) → 48px (desktop) → 44px (XL screens)
+- Sticky control buttons: 48px (mobile) → 44px (tablet) → 40px (desktop) → 36px (XL screens)
+- Font sizes adjust proportionally to maintain visual balance across breakpoints
 
 ## Model Response Handling
 
