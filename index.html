@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloze Reader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
+    <link href="./src/styles.css" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="icon" type="image/png" href="./favicon.png">
+    <link rel="shortcut icon" href="./favicon.ico">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+    <link rel="manifest" href="./site.webmanifest">
+</head>
+<body class="min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <div class="flex items-center justify-center mb-4 gap-3">
+                <img src="https://media.githubusercontent.com/media/milwrite/cloze-reader/main/icon.png" alt="Cloze Reader" class="w-12 h-12">
+                <h1 class="text-4xl font-bold typewriter-text">Cloze Reader</h1>
+            </div>
+            <p class="typewriter-subtitle text-center">Fill in the blanks to practice reading comprehension</p>
+        </header>
+        
+        <main id="game-container" class="space-y-6">
+            <div id="loading" class="text-center py-8">
+                <p class="text-lg loading-text">Loading passages...</p>
+            </div>
+            
+            <div id="game-area" class="paper-sheet rounded-lg p-6 hidden">
+                <div class="paper-content">
+                    <div class="flex justify-between items-center mb-4">
+                        <div id="book-info" class="biblio-info"></div>
+                        <div class="flex gap-2 items-center">
+                            <div id="streak-info" class="round-badge px-3 py-1 rounded-full text-sm hidden"></div>
+                            <div id="round-info" class="round-badge px-3 py-1 rounded-full text-sm"></div>
+                        </div>
+                    </div>
+                    <div id="contextualization" class="context-box mb-4 p-3 rounded-lg"></div>
+                    <div id="passage-content" class="prose max-w-none mb-6"></div>
+                    <div id="hints-section" class="hints-box mb-4 p-3 rounded-lg">
+                        <div class="text-sm font-semibold mb-2">👉👈 Hints:</div>
+                        <div id="hints-list" class="text-sm space-y-1"></div>
+                    </div>
+                    <div id="controls" class="hidden">
+                        <!-- Controls moved to sticky footer -->
+                    </div>
+                    <div id="result" class="mt-4 text-center result-text"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Sticky Control Panel -->
+    <div id="sticky-controls" class="sticky-controls hidden">
+        <div class="controls-inner">
+            <button type="button" id="submit-btn" class="typewriter-button">
+                Submit
+            </button>
+            <button type="button" id="skip-btn" class="typewriter-button hidden">
+                Skip
+            </button>
+            <button type="button" id="next-btn" class="typewriter-button hidden">
+                Next Passage
+            </button>
+            <div class="controls-divider"></div>
+            <button type="button" id="hint-btn" class="typewriter-button">
+                Show Hints
+            </button>
+            <div class="controls-divider"></div>
+            <button type="button" id="leaderboard-btn" class="leaderboard-footer-btn" title="View leaderboard">
+                🏅
+            </button>
+        </div>
+    </div>
+    
+    <script src="./src/app.js?v=20260109-2" type="module"></script>
+    <script type="module">
+        // Load test runner and ranking interface only in test mode
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('testMode') === 'true') {
+            import('./src/testGameRunner.js');
+            import('./src/userRankingInterface.js');
+        }
+    </script>
+</body>
+</html>
