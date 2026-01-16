@@ -1,4 +1,11 @@
-# Cloze Reader
+---
+title: Cloze Reader
+emoji: 📚
+colorFrom: yellow
+colorTo: gray
+sdk: docker
+pinned: true
+---
 
 An interactive reading comprehension game using AI to generate cloze (fill-in-the-blank) exercises from public domain literature.
 
@@ -10,7 +17,7 @@ The Cloze Reader transforms passages from Project Gutenberg into adaptive vocabu
 
 **Educational cloze testing (1953)**: Wilson L. Taylor introduced the cloze procedure—systematically deleting words from passages to measure reading comprehension. It became standard in U.S. educational assessment by the 1960s.
 
-**Masked language modeling (2018)**: BERT and subsequent models rediscovered cloze methodology independently as a training objective, randomly masking tokens and predicting from context. Both domains converge on the same principle: understanding language means predicting from context.
+**Masked language modeling (2018)**: BERT and subsequent models rediscovered cloze methodology independently as a training objective, randomly masking tokens and predicting from context.
 
 **This project**: Uses language models trained on prediction tasks to generate prediction exercises for human readers. While Gemma-3 uses next-token prediction rather than masked language modeling, the system demonstrates how assessment and training methodologies are now instrumentalized through identical computational systems.
 
