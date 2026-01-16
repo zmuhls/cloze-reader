@@ -235,70 +235,61 @@ async def read_root():
 @app.get("/api/leaderboard", response_model=LeaderboardResponse)
 async def get_leaderboard():
     """
-    Get current leaderboard data (Redis primary, HF Space fallback)
+    Get leaderboard data from HF Space
     """
-    if not leaderboard_service:
+    try:
+        hf_leaderboard_url = "https://milwright-cloze-leaderboard.hf.space/api/leaderboard"
+        data = await _fetch_json(hf_leaderboard_url, timeout=5.0)
+        return data
+    except Exception as e:
+        logger.error(f"Error fetching leaderboard from HF: {e}")
         return {
             "success": True,
             "leaderboard": [],
-            "message": "Leaderboard service not available (using localStorage only)"
+            "message": "Leaderboard service unavailable (using localStorage)"
         }
-
-    try:
-        leaderboard = leaderboard_service.get_leaderboard()
-        return {
-            "success": True,
-            "leaderboard": leaderboard,
-            "message": f"Retrieved {len(leaderboard)} entries"
-        }
-    except Exception as e:
-        logger.error(f"Error fetching leaderboard: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/leaderboard/add")
 async def add_leaderboard_entry(entry: LeaderboardEntry):
     """
-    Add new entry to leaderboard
+    Add entry to leaderboard via HF Space proxy
     """
-    if not leaderboard_service:
-        raise HTTPException(status_code=503, detail="Leaderboard service not available")
-
     try:
-        success = leaderboard_service.add_entry(entry.dict())
-        if success:
-            return {
-                "success": True,
-                "message": f"Added {entry.initials} to leaderboard"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to add entry")
-    except ValueError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        hf_leaderboard_url = "https://milwright-cloze-leaderboard.hf.space/api/leaderboard/add"
+        # Use requests to POST to HF space
+        import json
+        req = urllib.request.Request(
+            hf_leaderboard_url,
+            data=json.dumps(entry.dict()).encode('utf-8'),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            response_data = json.loads(resp.read().decode('utf-8'))
+            return response_data
     except Exception as e:
-        logger.error(f"Error adding entry: {e}")
+        logger.error(f"Error adding to leaderboard: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/leaderboard/update")
 async def update_leaderboard(entries: List[LeaderboardEntry]):
     """
-    Update entire leaderboard (replace all data)
+    Update leaderboard via HF Space proxy
     """
-    if not leaderboard_service:
-        raise HTTPException(status_code=503, detail="Leaderboard service not available")
-
     try:
-        success = leaderboard_service.update_leaderboard([e.dict() for e in entries])
-        if success:
-            return {
-                "success": True,
-                "message": "Leaderboard updated successfully"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to update leaderboard")
-    except ValueError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        hf_leaderboard_url = "https://milwright-cloze-leaderboard.hf.space/api/leaderboard/update"
+        import json
+        req = urllib.request.Request(
+            hf_leaderboard_url,
+            data=json.dumps([e.dict() for e in entries]).encode('utf-8'),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            response_data = json.loads(resp.read().decode('utf-8'))
+            return response_data
     except Exception as e:
         logger.error(f"Error updating leaderboard: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -307,22 +298,15 @@ async def update_leaderboard(entries: List[LeaderboardEntry]):
 @app.delete("/api/leaderboard/clear")
 async def clear_leaderboard():
     """
-    Clear all leaderboard data (admin only)
+    Clear leaderboard via HF Space proxy
     """
-    if not leaderboard_service:
-        raise HTTPException(status_code=503, detail="Leaderboard service not available")
-
     try:
-        success = leaderboard_service.clear_leaderboard()
-        if success:
-            return {
-                "success": True,
-                "message": "Leaderboard cleared"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to clear leaderboard")
-    except ValueError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        hf_leaderboard_url = "https://milwright-cloze-leaderboard.hf.space/api/leaderboard/clear"
+        req = urllib.request.Request(hf_leaderboard_url, method="DELETE")
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            import json
+            response_data = json.loads(resp.read().decode('utf-8'))
+            return response_data
     except Exception as e:
         logger.error(f"Error clearing leaderboard: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -331,29 +315,9 @@ async def clear_leaderboard():
 @app.post("/api/leaderboard/seed-from-hf")
 async def seed_leaderboard_from_hf():
     """
-    Force re-seed Redis leaderboard from HF Space (admin function).
-    Use this to migrate existing HF Space data to Redis.
+    Fetch leaderboard from HF Space (deprecated - use /api/leaderboard instead)
     """
-    if not leaderboard_service:
-        raise HTTPException(status_code=503, detail="Leaderboard service not available")
-
-    try:
-        success = leaderboard_service.force_seed_from_hf()
-        if success:
-            leaderboard = leaderboard_service.get_leaderboard()
-            return {
-                "success": True,
-                "message": f"Seeded Redis with {len(leaderboard)} entries from HF Space",
-                "entries": len(leaderboard)
-            }
-        else:
-            return {
-                "success": False,
-                "message": "No entries found in HF Space to seed"
-            }
-    except Exception as e:
-        logger.error(f"Error seeding leaderboard from HF: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return await get_leaderboard()
 
 
 # ===== ANALYTICS API ENDPOINTS =====
