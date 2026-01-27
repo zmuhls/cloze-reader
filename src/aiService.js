@@ -114,13 +114,13 @@ class OpenRouterService {
   }
 
   async generateContextualHint(prompt) {
-    // Check for API key at runtime
+    // Always get fresh API key at runtime (handles delayed loading from init-env.js)
     const currentKey = this.getApiKey();
-    if (currentKey && !this.apiKey) {
+    if (currentKey && currentKey !== 'local-mode-no-key') {
       this.apiKey = currentKey;
     }
-    
-    if (!this.apiKey) {
+
+    if (!this.apiKey || this.apiKey === '') {
       return 'API key required for hints';
     }
 
@@ -228,16 +228,16 @@ class OpenRouterService {
 
 
   async selectSignificantWords(passage, count, level = 1) {
-    
-    // Check for API key at runtime in case it was loaded after initialization
+
+    // Always get fresh API key at runtime (handles delayed loading from init-env.js)
     const currentKey = this.getApiKey();
-    if (currentKey && !this.apiKey) {
+    if (currentKey && currentKey !== 'local-mode-no-key') {
       this.apiKey = currentKey;
     }
-    
-    
-    if (!this.apiKey) {
-      console.error('No API key for word selection');
+
+
+    if (!this.apiKey || this.apiKey === '') {
+      console.error('No API key for word selection - check OPENROUTER_API_KEY');
       throw new Error('API key required for word selection');
     }
 
@@ -256,14 +256,20 @@ class OpenRouterService {
 
     try {
       return await this.retryRequest(async () => {
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        // Only add auth headers for OpenRouter
+        if (!this.isLocalMode) {
+          headers['Authorization'] = `Bearer ${this.apiKey}`;
+          headers['HTTP-Referer'] = window.location.origin;
+          headers['X-Title'] = 'Cloze Reader';
+        }
+
         const response = await fetch(this.apiUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': window.location.origin,
-            'X-Title': 'Cloze Reader'
-          },
+          headers,
           body: JSON.stringify({
             model: this.primaryModel,  // Use Gemma-3-12b for word selection
             messages: [{
@@ -418,11 +424,11 @@ Passage: "${passage}"`
   async processBothPassages(passage1, book1, passage2, book2, blanksPerPassage, level = 1) {
     // Process both passages in a single API call to avoid rate limits
     const currentKey = this.getApiKey();
-    if (currentKey && !this.apiKey) {
+    if (currentKey && currentKey !== 'local-mode-no-key') {
       this.apiKey = currentKey;
     }
-    
-    if (!this.apiKey) {
+
+    if (!this.apiKey || this.apiKey === '') {
       throw new Error('API key required for passage processing');
     }
 
@@ -644,27 +650,33 @@ Return JSON: {"passage1": {"words": [${blanksPerPassage} words], "context": "one
 
   async generateContextualization(title, author, passage) {
 
-    // Check for API key at runtime
+    // Always get fresh API key at runtime (handles delayed loading from init-env.js)
     const currentKey = this.getApiKey();
-    if (currentKey && !this.apiKey) {
+    if (currentKey && currentKey !== 'local-mode-no-key') {
       this.apiKey = currentKey;
     }
 
 
-    if (!this.apiKey) {
+    if (!this.apiKey || this.apiKey === '') {
       return `A passage from ${author}'s "${title}"`;
     }
 
     try {
       return await this.retryRequest(async () => {
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        // Only add auth headers for OpenRouter
+        if (!this.isLocalMode) {
+          headers['Authorization'] = `Bearer ${this.apiKey}`;
+          headers['HTTP-Referer'] = window.location.origin;
+          headers['X-Title'] = 'Cloze Reader';
+        }
+
         const response = await fetch(this.apiUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': window.location.origin,
-            'X-Title': 'Cloze Reader'
-          },
+          headers,
           body: JSON.stringify({
             model: this.primaryModel,  // Use Gemma-3-27b for contextualization
             messages: [{
