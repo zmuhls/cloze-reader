@@ -2,16 +2,16 @@ class OpenRouterService {
   constructor() {
     // Check for local LLM mode
     this.isLocalMode = this.checkLocalMode();
-    this.apiUrl = this.isLocalMode ? 'http://localhost:1234/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
-    this.apiKey = this.getApiKey();
-    
+    // Local mode calls LLM directly; production routes through backend proxy
+    this.apiUrl = this.isLocalMode ? 'http://localhost:1234/v1/chat/completions' : '/api/ai/chat';
+
     // Single model configuration: Gemma-3-27b for all operations
     this.hintModel = this.isLocalMode ? 'gemma-3-12b' : 'google/gemma-3-27b-it';
     this.primaryModel = this.isLocalMode ? 'gemma-3-12b' : 'google/gemma-3-27b-it';
     this.model = this.primaryModel; // Default model for backward compatibility
 
     console.log('🤖 AI Service initialized', {
-      mode: this.isLocalMode ? 'Local LLM' : 'OpenRouter',
+      mode: this.isLocalMode ? 'Local LLM' : 'Backend Proxy',
       url: this.apiUrl,
       primaryModel: this.primaryModel,
       hintModel: this.hintModel
@@ -80,22 +80,11 @@ class OpenRouterService {
   }
 
   getApiKey() {
-    // Local mode doesn't need API key
+    // Local mode uses placeholder; production proxies through backend (no client key needed)
     if (this.isLocalMode) {
       return 'local-mode-no-key';
     }
-    if (typeof process !== 'undefined' && process.env && process.env.OPENROUTER_API_KEY) {
-      return process.env.OPENROUTER_API_KEY;
-    }
-    if (typeof window !== 'undefined' && window.OPENROUTER_API_KEY) {
-      return window.OPENROUTER_API_KEY;
-    }
-    // console.warn('No API key found in getApiKey()');
-    return '';
-  }
-
-  setApiKey(key) {
-    this.apiKey = key;
+    return 'proxy-mode';
   }
 
   async retryRequest(requestFn, maxRetries = 3, delayMs = 500) {
@@ -114,28 +103,11 @@ class OpenRouterService {
   }
 
   async generateContextualHint(prompt) {
-    // Always get fresh API key at runtime (handles delayed loading from init-env.js)
-    const currentKey = this.getApiKey();
-    if (currentKey && currentKey !== 'local-mode-no-key') {
-      this.apiKey = currentKey;
-    }
-
-    if (!this.apiKey || this.apiKey === '') {
-      return 'API key required for hints';
-    }
-
     try {
       const headers = {
         'Content-Type': 'application/json'
       };
-      
-      // Only add auth headers for OpenRouter
-      if (!this.isLocalMode) {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
-        headers['HTTP-Referer'] = window.location.origin;
-        headers['X-Title'] = 'Cloze Reader';
-      }
-      
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers,
@@ -228,19 +200,6 @@ class OpenRouterService {
 
 
   async selectSignificantWords(passage, count, level = 1) {
-
-    // Always get fresh API key at runtime (handles delayed loading from init-env.js)
-    const currentKey = this.getApiKey();
-    if (currentKey && currentKey !== 'local-mode-no-key') {
-      this.apiKey = currentKey;
-    }
-
-
-    if (!this.apiKey || this.apiKey === '') {
-      console.error('No API key for word selection - check OPENROUTER_API_KEY');
-      throw new Error('API key required for word selection');
-    }
-
     // Define level-based constraints (relaxed length to ensure playability)
     let wordLengthConstraint, difficultyGuidance;
     if (level <= 2) {
@@ -259,13 +218,6 @@ class OpenRouterService {
         const headers = {
           'Content-Type': 'application/json'
         };
-
-        // Only add auth headers for OpenRouter
-        if (!this.isLocalMode) {
-          headers['Authorization'] = `Bearer ${this.apiKey}`;
-          headers['HTTP-Referer'] = window.location.origin;
-          headers['X-Title'] = 'Cloze Reader';
-        }
 
         const response = await fetch(this.apiUrl, {
           method: 'POST',
@@ -422,16 +374,6 @@ Passage: "${passage}"`
   }
 
   async processBothPassages(passage1, book1, passage2, book2, blanksPerPassage, level = 1) {
-    // Process both passages in a single API call to avoid rate limits
-    const currentKey = this.getApiKey();
-    if (currentKey && currentKey !== 'local-mode-no-key') {
-      this.apiKey = currentKey;
-    }
-
-    if (!this.apiKey || this.apiKey === '') {
-      throw new Error('API key required for passage processing');
-    }
-
     // Define level-based constraints (relaxed length to ensure playability)
     let wordLengthConstraint, difficultyGuidance;
     if (level <= 2) {
@@ -453,14 +395,7 @@ Passage: "${passage}"`
       const headers = {
         'Content-Type': 'application/json'
       };
-      
-      // Only add auth headers for OpenRouter
-      if (!this.isLocalMode) {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
-        headers['HTTP-Referer'] = window.location.origin;
-        headers['X-Title'] = 'Cloze Reader';
-      }
-      
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers,
@@ -649,30 +584,11 @@ Return JSON: {"passage1": {"words": [${blanksPerPassage} words], "context": "one
   }
 
   async generateContextualization(title, author, passage) {
-
-    // Always get fresh API key at runtime (handles delayed loading from init-env.js)
-    const currentKey = this.getApiKey();
-    if (currentKey && currentKey !== 'local-mode-no-key') {
-      this.apiKey = currentKey;
-    }
-
-
-    if (!this.apiKey || this.apiKey === '') {
-      return `A passage from ${author}'s "${title}"`;
-    }
-
     try {
       return await this.retryRequest(async () => {
         const headers = {
           'Content-Type': 'application/json'
         };
-
-        // Only add auth headers for OpenRouter
-        if (!this.isLocalMode) {
-          headers['Authorization'] = `Bearer ${this.apiKey}`;
-          headers['HTTP-Referer'] = window.location.origin;
-          headers['X-Title'] = 'Cloze Reader';
-        }
 
         const response = await fetch(this.apiUrl, {
           method: 'POST',

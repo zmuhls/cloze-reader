@@ -11,6 +11,7 @@ import asyncio
 import urllib.request
 import urllib.parse
 from dotenv import load_dotenv
+import httpx
 import logging
 
 # Load environment variables from .env file
@@ -194,25 +195,58 @@ async def admin_dashboard():
 
 @app.get("/")
 async def read_root():
-    # Read the HTML file and inject environment variables
     with open("index.html", "r") as f:
         html_content = f.read()
-    
-    # Inject environment variables as a script
-    openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
-    hf_key = os.getenv("HF_API_KEY", "")
-    
-    # Create a CSP-compliant way to inject the keys
-    env_script = f"""
-    <meta name="openrouter-key" content="{openrouter_key}">
-    <meta name="hf-key" content="{hf_key}">
-    <script src="./src/init-env.js"></script>
-    """
-    
-    # Insert the script before closing head tag
-    html_content = html_content.replace("</head>", env_script + "</head>")
-    
     return HTMLResponse(content=html_content)
+
+
+# ===== AI PROXY ENDPOINT =====
+
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+class AIChatRequest(BaseModel):
+    model: str
+    messages: list
+    max_tokens: int = 200
+    temperature: float = 0.5
+    response_format: Optional[dict] = None
+
+@app.post("/api/ai/chat")
+async def proxy_ai_chat(request: AIChatRequest):
+    """
+    Proxy AI chat requests to OpenRouter so the API key never reaches the client.
+    """
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not openrouter_key:
+        raise HTTPException(status_code=503, detail="AI service not configured")
+
+    headers = {
+        "Authorization": f"Bearer {openrouter_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://reader.inference-arcade.com",
+        "X-Title": "Cloze Reader",
+    }
+
+    payload = {
+        "model": request.model,
+        "messages": request.messages,
+        "max_tokens": request.max_tokens,
+        "temperature": request.temperature,
+    }
+    if request.response_format:
+        payload["response_format"] = request.response_format
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(OPENROUTER_API_URL, headers=headers, json=payload)
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"OpenRouter API error: {e.response.status_code} {e.response.text}")
+        raise HTTPException(status_code=e.response.status_code, detail="AI provider error")
+    except httpx.RequestError as e:
+        logger.error(f"OpenRouter request failed: {e}")
+        raise HTTPException(status_code=502, detail="AI provider unreachable")
 
 
 # ===== LEADERBOARD API ENDPOINTS =====
