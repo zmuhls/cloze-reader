@@ -10,6 +10,8 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 import redis
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -36,22 +38,36 @@ class RedisAnalyticsService:
         Args:
             redis_url: Redis connection URL (default: REDIS_URL env var)
         """
-        self.redis_url = redis_url or os.getenv("REDIS_URL")
+        self.redis_url = redis_url or self._resolve_url()
         self.redis_client: Optional[redis.Redis] = None
         self._connect()
 
+    @staticmethod
+    def _resolve_url() -> Optional[str]:
+        """Try multiple Railway Redis URL env vars"""
+        for var in ["REDIS_URL", "REDIS_PUBLIC_URL", "REDIS_PRIVATE_URL"]:
+            url = os.getenv(var)
+            if url:
+                logger.info(f"Analytics using Redis URL from {var}")
+                return url
+        return None
+
     def _connect(self):
-        """Establish Redis connection"""
+        """Establish Redis connection with retry and health checks"""
         if not self.redis_url:
             logger.warning("No REDIS_URL provided for analytics")
             return
 
         try:
+            retry = Retry(ExponentialBackoff(), retries=3)
             self.redis_client = redis.from_url(
                 self.redis_url,
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
+                retry=retry,
+                retry_on_error=[redis.ConnectionError, redis.TimeoutError],
+                health_check_interval=30,
             )
             self.redis_client.ping()
             logger.info("Redis Analytics Service connected")
@@ -59,14 +75,24 @@ class RedisAnalyticsService:
             logger.error(f"Failed to connect Redis for analytics: {e}")
             self.redis_client = None
 
+    def _ensure_connected(self) -> bool:
+        """Lazy reconnection - attempt to reconnect if client is None"""
+        if self.redis_client:
+            return True
+        if self.redis_url:
+            logger.info("Attempting Redis reconnection for analytics...")
+            self._connect()
+        return self.redis_client is not None
+
     def is_available(self) -> bool:
-        """Check if Redis is available for analytics"""
-        if not self.redis_client:
+        """Check if Redis is available for analytics (with reconnection)"""
+        if not self._ensure_connected():
             return False
         try:
             self.redis_client.ping()
             return True
         except redis.RedisError:
+            self.redis_client = None
             return False
 
     def record_passage(self, data: Dict) -> Optional[str]:
@@ -90,7 +116,7 @@ class RedisAnalyticsService:
         Returns:
             Stream entry ID or None if failed
         """
-        if not self.redis_client:
+        if not self._ensure_connected():
             logger.warning("Analytics unavailable - Redis not connected")
             return None
 
@@ -134,6 +160,7 @@ class RedisAnalyticsService:
 
         except redis.RedisError as e:
             logger.error(f"Failed to record passage analytics: {e}")
+            self.redis_client = None
             return None
 
     def get_summary(self) -> Dict:
@@ -148,7 +175,7 @@ class RedisAnalyticsService:
                 - easiestWords: Top 10 words correct on first try
                 - popularBooks: Top 10 most used books
         """
-        if not self.redis_client:
+        if not self._ensure_connected():
             return self._empty_summary()
 
         try:
@@ -199,6 +226,7 @@ class RedisAnalyticsService:
 
         except redis.RedisError as e:
             logger.error(f"Failed to get analytics summary: {e}")
+            self.redis_client = None
             return self._empty_summary()
 
     def _empty_summary(self) -> Dict:
@@ -221,7 +249,7 @@ class RedisAnalyticsService:
         Returns:
             List of passage analytics records (newest first)
         """
-        if not self.redis_client:
+        if not self._ensure_connected():
             return []
 
         try:
@@ -232,6 +260,7 @@ class RedisAnalyticsService:
 
         except redis.RedisError as e:
             logger.error(f"Failed to get recent passages: {e}")
+            self.redis_client = None
             return []
 
     def export_all(self) -> List[Dict]:
@@ -241,7 +270,7 @@ class RedisAnalyticsService:
         Returns:
             List of all passage analytics records (oldest first)
         """
-        if not self.redis_client:
+        if not self._ensure_connected():
             return []
 
         try:
@@ -250,6 +279,7 @@ class RedisAnalyticsService:
 
         except redis.RedisError as e:
             logger.error(f"Failed to export analytics: {e}")
+            self.redis_client = None
             return []
 
     def get_word_stats(self, word: str) -> Dict:
@@ -262,7 +292,7 @@ class RedisAnalyticsService:
         Returns:
             Dictionary with first_try_count and retry_count
         """
-        if not self.redis_client:
+        if not self._ensure_connected():
             return {"firstTryCount": 0, "retryCount": 0}
 
         try:
@@ -278,6 +308,7 @@ class RedisAnalyticsService:
 
         except redis.RedisError as e:
             logger.error(f"Failed to get word stats: {e}")
+            self.redis_client = None
             return {"firstTryCount": 0, "retryCount": 0}
 
     def clear_analytics(self) -> bool:
@@ -287,7 +318,7 @@ class RedisAnalyticsService:
         Returns:
             True if successful
         """
-        if not self.redis_client:
+        if not self._ensure_connected():
             return False
 
         try:
@@ -303,4 +334,5 @@ class RedisAnalyticsService:
 
         except redis.RedisError as e:
             logger.error(f"Failed to clear analytics: {e}")
+            self.redis_client = None
             return False

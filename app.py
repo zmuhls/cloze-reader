@@ -64,6 +64,32 @@ except Exception as e:
     logger.warning(f"Could not initialize Analytics Service: {e}")
     analytics_service = None
 
+# ===== HEALTH CHECK ENDPOINT =====
+
+@app.get("/api/health")
+async def health_check():
+    """Diagnostic endpoint for Redis and service status"""
+    redis_leaderboard_ok = False
+    redis_analytics_ok = False
+
+    if leaderboard_service:
+        redis_leaderboard_ok = leaderboard_service.is_redis_available()
+    if analytics_service:
+        redis_analytics_ok = analytics_service.is_available()
+
+    return {
+        "status": "ok",
+        "redis": {
+            "leaderboard": "connected" if redis_leaderboard_ok else "disconnected",
+            "analytics": "connected" if redis_analytics_ok else "disconnected",
+        },
+        "services": {
+            "leaderboard": "initialized" if leaderboard_service else "unavailable",
+            "analytics": "initialized" if analytics_service else "unavailable",
+        },
+    }
+
+
 # Pydantic models for API
 class LeaderboardEntry(BaseModel):
     initials: str
@@ -383,11 +409,10 @@ async def record_passage_analytics(data: PassageAnalytics):
     Record a completed passage attempt with analytics data.
     Called by frontend when a passage is completed (pass or fail).
     """
-    if not analytics_service or not analytics_service.is_available():
-        # Gracefully degrade - don't fail the game if analytics unavailable
+    if not analytics_service:
         return {
             "success": False,
-            "message": "Analytics service unavailable"
+            "message": "Analytics service not initialized"
         }
 
     try:

@@ -8,6 +8,9 @@ services:
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - HF_API_KEY=${HF_API_KEY:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-}
+      - REDIS_PUBLIC_URL=${REDIS_PUBLIC_URL:-}
     volumes:
       - ./src:/app/src:ro
       - ./index.html:/app/index.html:ro

@@ -11,6 +11,8 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 import redis
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ class RedisLeaderboardService:
             hf_fallback_url: HF Space URL for fallback operations
             hf_token: HF token for syncing to HF Space (default: HF_TOKEN env var)
         """
-        self.redis_url = redis_url or os.getenv("REDIS_URL")
+        self.redis_url = redis_url or self._resolve_url()
         self.hf_fallback_url = hf_fallback_url
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
         self.redis_client: Optional[redis.Redis] = None
@@ -54,25 +56,48 @@ class RedisLeaderboardService:
         else:
             logger.warning("Redis unavailable, using HF Space fallback only")
 
+    @staticmethod
+    def _resolve_url() -> Optional[str]:
+        """Try multiple Railway Redis URL env vars"""
+        for var in ["REDIS_URL", "REDIS_PUBLIC_URL", "REDIS_PRIVATE_URL"]:
+            url = os.getenv(var)
+            if url:
+                logger.info(f"Leaderboard using Redis URL from {var}")
+                return url
+        return None
+
     def _connect_redis(self):
-        """Establish Redis connection if URL is available"""
+        """Establish Redis connection with retry and health checks"""
         if not self.redis_url:
             logger.warning("No REDIS_URL provided")
             return
 
         try:
+            retry = Retry(ExponentialBackoff(), retries=3)
             self.redis_client = redis.from_url(
                 self.redis_url,
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
+                retry=retry,
+                retry_on_error=[redis.ConnectionError, redis.TimeoutError],
+                health_check_interval=30,
             )
             # Test connection
             self.redis_client.ping()
-            logger.info(f"Connected to Redis")
+            logger.info("Connected to Redis")
         except redis.RedisError as e:
             logger.error(f"Failed to connect to Redis: {e}")
             self.redis_client = None
+
+    def _ensure_connected(self) -> bool:
+        """Lazy reconnection - attempt to reconnect if client is None"""
+        if self.redis_client:
+            return True
+        if self.redis_url:
+            logger.info("Attempting Redis reconnection for leaderboard...")
+            self._connect_redis()
+        return self.redis_client is not None
 
     def _compute_score(self, level: int, round_num: int, passages: int) -> float:
         """
@@ -102,7 +127,7 @@ class RedisLeaderboardService:
         Returns:
             List of leaderboard entries sorted by rank (best first)
         """
-        if self.redis_client:
+        if self._ensure_connected():
             try:
                 # Get top entries from sorted set (highest scores first)
                 members = self.redis_client.zrevrange(
@@ -111,7 +136,7 @@ class RedisLeaderboardService:
                 return [self._member_to_entry(m) for m in members]
             except redis.RedisError as e:
                 logger.error(f"Redis error in get_leaderboard: {e}")
-                # Fall through to HF fallback
+                self.redis_client = None
 
         return self._fallback_get()
 
@@ -134,7 +159,7 @@ class RedisLeaderboardService:
             "date": entry.get("date") or datetime.utcnow().isoformat(),
         }
 
-        if self.redis_client:
+        if self._ensure_connected():
             try:
                 score = self._compute_score(
                     normalized["level"],
@@ -165,7 +190,7 @@ class RedisLeaderboardService:
 
             except redis.RedisError as e:
                 logger.error(f"Redis error in add_entry: {e}")
-                # Fall through to HF fallback
+                self.redis_client = None
 
         return self._fallback_add(normalized)
 
@@ -179,7 +204,7 @@ class RedisLeaderboardService:
         Returns:
             True if successful, False otherwise
         """
-        if self.redis_client:
+        if self._ensure_connected():
             try:
                 # Clear existing leaderboard
                 self.redis_client.delete(self.LEADERBOARD_KEY)
@@ -210,6 +235,7 @@ class RedisLeaderboardService:
 
             except redis.RedisError as e:
                 logger.error(f"Redis error in update_leaderboard: {e}")
+                self.redis_client = None
 
         return self._fallback_update(entries)
 
@@ -220,7 +246,7 @@ class RedisLeaderboardService:
         Returns:
             True if successful, False otherwise
         """
-        if self.redis_client:
+        if self._ensure_connected():
             try:
                 self.redis_client.delete(self.LEADERBOARD_KEY)
                 logger.info("Leaderboard cleared from Redis")
@@ -232,6 +258,7 @@ class RedisLeaderboardService:
 
             except redis.RedisError as e:
                 logger.error(f"Redis error in clear_leaderboard: {e}")
+                self.redis_client = None
 
         return self._fallback_clear()
 
@@ -323,13 +350,14 @@ class RedisLeaderboardService:
             logger.debug(f"HF Space sync failed (non-critical): {e}")
 
     def is_redis_available(self) -> bool:
-        """Check if Redis connection is active"""
-        if not self.redis_client:
+        """Check if Redis connection is active (with reconnection)"""
+        if not self._ensure_connected():
             return False
         try:
             self.redis_client.ping()
             return True
         except redis.RedisError:
+            self.redis_client = None
             return False
 
     # ===== DATA MIGRATION =====
