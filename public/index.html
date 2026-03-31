@@ -121,14 +121,14 @@
         btn.addEventListener('click', () => {
           if (atAbout) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
-          } else {
+          } else if (!about.classList.contains('revealed')) {
             about.classList.add('revealed');
-            // Defer scroll until the max-height transition gives the element layout height
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                about.scrollIntoView({ behavior: 'smooth' });
-              });
+            about.addEventListener('transitionend', function onEnd() {
+              about.removeEventListener('transitionend', onEnd);
+              about.scrollIntoView({ behavior: 'smooth' });
             });
+          } else {
+            about.scrollIntoView({ behavior: 'smooth' });
           }
         });
         const obs = new IntersectionObserver(([e]) => {
