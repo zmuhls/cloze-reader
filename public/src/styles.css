@@ -537,17 +537,17 @@
 
   @media (max-width: 640px) {
     .prose {
-      font-size: 1.125rem;
+      font-size: 0.95rem;
     }
 
     .typewriter-text {
-      font-size: 1.75rem;
+      font-size: 1.6rem;
     }
 
     .typewriter-button {
       min-width: 100px;
       min-height: 38px;
-      font-size: 1rem;
+      font-size: 0.85rem;
     }
 
     .leaderboard-footer-btn {
@@ -560,20 +560,20 @@
 
   @media (max-width: 480px) {
     .prose {
-      font-size: 1.05rem;
+      font-size: 0.875rem;
     }
 
     .typewriter-text {
-      font-size: 1.5rem;
+      font-size: 1.4rem;
     }
 
     .cloze-input {
-      min-width: 3ch;
+      min-width: 2.5ch;
     }
 
     header img {
-      width: 2.5rem;
-      height: 2.5rem;
+      width: 2rem;
+      height: 2rem;
     }
 
     .leaderboard-footer-btn {
@@ -618,7 +618,19 @@
       line-height: 1.8;
     }
     .typewriter-text {
-      font-size: 2.5rem;
+      font-size: 2.75rem;
+    }
+    .typewriter-subtitle {
+      font-size: 1.15rem;
+    }
+    .biblio-info {
+      font-size: 1rem;
+    }
+    .context-box {
+      font-size: 1.05rem;
+    }
+    .round-badge {
+      font-size: 1rem;
     }
     .typewriter-button {
       font-size: 16px;
@@ -633,7 +645,16 @@
       line-height: 1.85;
     }
     .typewriter-text {
-      font-size: 2.75rem;
+      font-size: 3rem;
+    }
+    .typewriter-subtitle {
+      font-size: 1.25rem;
+    }
+    .biblio-info {
+      font-size: 1.1rem;
+    }
+    .context-box {
+      font-size: 1.15rem;
     }
   }
 
@@ -1353,14 +1374,14 @@
 /* ── Scroll toggle caret ── */
 .scroll-toggle-wrap {
   position: fixed;
-  bottom: 0;
+  bottom: 68px;
   left: 0;
   right: 0;
   height: 32px;
   overflow: hidden;
   display: none;
   justify-content: center;
-  z-index: 60;
+  z-index: 1001;
   pointer-events: none;
 }
 .scroll-toggle-wrap.visible { display: flex; }
@@ -1453,6 +1474,6 @@
 }
 
 @media (max-width: 768px) {
-  .scroll-toggle-wrap { height: 30px; }
+  .scroll-toggle-wrap { bottom: 72px; height: 30px; }
   .about-body p { font-size: 0.9rem; }
 }
