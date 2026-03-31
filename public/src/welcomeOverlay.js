@@ -32,27 +32,27 @@ class WelcomeOverlay {
     `;
 
     modal.innerHTML = `
-      <div style="display: flex; justify-content: center; margin-bottom: 12px;">
+      <div style="display: flex; justify-content: center; margin-bottom: 16px;">
         <img src="https://media.githubusercontent.com/media/milwrite/cloze-reader/main/icon.png"
              alt=""
-             style="width: 48px; height: 48px; border-radius: 6px;"
+             style="width: 56px; height: 56px; border-radius: 8px;"
              onerror="this.style.display='none'">
       </div>
       <h1 class="welcome-title">
         Cloze Reader
       </h1>
-      
+
       <div class="welcome-content">
         <p>
-          <strong>How to play:</strong> Fill in the blanks to advance through levels with increasing difficulty and vocabulary complexity.
+          Each round draws a passage from Project Gutenberg and blanks out one or more words, chosen by an AI model. Read the context and infer what belongs in the gap.
         </p>
 
         <p>
-          <strong>Data source:</strong> Excerpted historical and literary texts from Project Gutenberg's public domain collection, processed via Hugging Face Datasets.
+          A chat panel offers hints about part of speech, sentence role, and synonymy without revealing the answer. Levels add more blanks and steeper vocabulary.
         </p>
 
         <p style="margin-bottom: 0;">
-          <strong>AI assistance:</strong> Powered by Google's Gemma-3-27b model via OpenRouter for word selection, hints, and contextualization.
+          Word selection runs on Google's open-weight Gemma-3-27B model. No two sessions are identical.
         </p>
       </div>
 
