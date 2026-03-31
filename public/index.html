@@ -52,51 +52,23 @@
         </main>
     </div>
     
-    <!-- Scroll toggle caret -->
-    <button id="scroll-toggle" class="scroll-toggle-btn" aria-label="Read about this project">
+    <!-- Scroll toggle caret — hidden until essay exists below -->
+    <button id="scroll-toggle" class="scroll-toggle-btn" aria-label="About this project">
       <span id="scroll-caret">▼</span>
     </button>
 
-    <!-- Essay: condensed from "Fill in the Blank" (Muhlbauer 2026) -->
-    <section id="essay-section" class="essay-section">
+    <!-- About section — starts hidden below the viewport -->
+    <section id="about-section" class="about-section">
       <div class="container mx-auto px-4 py-12 max-w-2xl">
-        <h2 class="essay-title">Fill in the Blank</h2>
-        <p class="essay-subtitle">Cloze Reader and the Twin Histories of Occlusion</p>
-        <p class="essay-byline">Zach Muhlbauer · The Graduate Center, CUNY</p>
+        <div class="about-body">
 
-        <div class="essay-body">
-          <h3>The Cloze Procedure</h3>
+          <p>The cloze procedure was introduced in 1953 by Wilson Taylor, who adapted the Gestalt principle of closure to measure reading comprehension: delete words from a passage at regular intervals and ask readers to supply them from context. The same logic resurfaced decades later as masked language modeling, the training objective behind BERT and its successors. Both rest on the distributional hypothesis — the claim that words derive meaning from the contexts in which they appear. Cloze Reader sits at the intersection of these two histories, returning the fill-in-the-blank task to human readers at a moment when machines perform it at scale.</p>
 
-          <p>In 1953, Wilson Taylor proposed a simple test: delete words from a passage at regular intervals and ask readers to fill in the blanks. He called it the cloze procedure, adapting the Gestalt principle of closure — the perceptual tendency to complete incomplete patterns. The approach tested whether a reader could bring syntax, semantics, and pragmatics to bear on a single missing word, and it tracked comprehension in ways that syllable-counting and sentence-length measures could not.</p>
+          <p>Each round presents a passage drawn from Project Gutenberg and removes one or more words, selected by an AI model rather than at fixed intervals. Your job is to read the surrounding context and infer the missing word. You can consult structured hints about part of speech, sentence role, or synonymy, but the answer is never given directly. Difficulty scales across two dimensions as you advance: the number of blanks per passage increases, and the vocabulary the model selects from shifts from common to challenging. Scores and streaks track your progress, and a leaderboard records the highest levels reached. No two sessions are identical — word selection uses non-zero temperature decoding, so the same passage can yield different blanks on different runs.</p>
 
-          <p>Taylor named closure as his reference, but the procedure he designed is better described by a related Gestalt concept: occlusion. Closure names the tendency to complete a gap in a continuous form. Occlusion names the tendency to complete a form that another object blocks from view — the hidden portion that does not appear in the visual field yet is treated by the perceptual system as present. A cloze blank works similarly. The deleted word still governs the surrounding syntax, still selects for specific collocates, and still shapes what can precede and follow it. Removing the word from view does not remove its structural presence.</p>
+          <p>The app runs on Cloudflare Workers with a Hono backend. Passages stream from the Hugging Face Datasets API, and word selection, hint generation, and passage contextualization are each handled by separate calls to Google's Gemma-3-27B model via OpenRouter — the model never carries context between tasks, so selection cannot drift toward words the hint system handles fluently. The source archive is deliberate: Gutenberg texts are canonical pretraining data, already absorbed into LLM parameter weights and disaggregated from their narrative forms. Cloze Reader restores those flattened texts to the surface and asks human readers to engage them at a pace the model's low-latency engine cannot match. The project is open source at <a href="https://github.com/zmuhls/cloze-reader">github.com/zmuhls/cloze-reader</a>.</p>
 
-          <p>By the 1960s, cloze testing had become standard in educational assessment. Oller formalized what cloze performance draws on as "pragmatic expectancy grammar," the linguistic knowledge that allows readers to anticipate what can and cannot come next. Two debates complicated the procedure's adoption: whether only the exact original word should be accepted or whether synonyms warranted credit, and whether words should be deleted at fixed intervals or selected for their inferential salience. Both disputes surface a genuine ambiguity. Cloze tests measure prediction of the original author's word choice as much as they measure comprehension.</p>
-
-          <h3>From Reading Test to Training Objective</h3>
-
-          <p>The structural resemblance between cloze testing and masked language modeling is not accidental. Both descend from the distributional hypothesis — the claim, formalized by Harris and made memorable by Firth's dictum "you shall know a word by the company it keeps," that words occurring in similar contexts carry similar meanings. The contextual prediction insight that Taylor applied to human readers is the same insight that word embedding models would eventually formalize as a training objective.</p>
-
-          <p>Mikolov showed that shallow neural networks trained on prediction objectives could encode semantic and syntactic regularities at scale. Peters responded with contextualized representations that varied by sentence. Devlin extended that logic with BERT, training a transformer encoder to predict randomly masked tokens from the full bidirectional context. Devlin called this masked language modeling and drew the analogy to the cloze task directly, having changed the scale and the architecture but not the task itself.</p>
-
-          <p>Both histories share a structural premise: contextual prediction is a meaningful index of linguistic competence. Taylor operationalized that premise as an assessment instrument. BERT's developers operationalized it as a training objective. The two applications differ in what they treat as the system under examination and in what the procedure is meant to produce — a measurement of existing capacity, or an induction of new representations.</p>
-
-          <h3>How Cloze Reader Works</h3>
-
-          <p>Cloze Reader is a browser-based game that uses a language model to generate cloze tasks and return them to human readers as exercises in contextual induction. Passages are drawn from Project Gutenberg through the Hugging Face Datasets API, and the app uses Google's Gemma-3-27B model for word selection, hints, and contextualization. Players propose completions for missing words and can consult an embedded chat panel that withholds the answer while offering structural hints about part of speech, sentence role, and synonymy.</p>
-
-          <p>Word selection is delegated to a predictive language model rather than a fixed deletion rule. The model receives heuristic constraints that translate pedagogical intent into operational rules — requesting "easy," "medium," or "challenging" selections by level, filtering by word length, and avoiding proper nouns and front matter. A validation layer confirms that selected words actually appear in the passage. If the model fails, a manual fallback excludes common function words and selects by frequency.</p>
-
-          <p>Each task — word selection, hint generation, passage contextualization — runs as a separate API call. The model never carries context between tasks. This separation is deliberate: shared context would make word selection drift toward words the hint system handles fluently, compromising the puzzle. Difficulty scales across two dimensions: blank count rises from one to three, and vocabulary difficulty scales independently. No two sessions are identical, because word selection runs with non-zero temperature decoding.</p>
-
-          <p>The source archive matters. Gutenberg texts are canonical pretraining data, present in The Pile and its successors, already disaggregated into token distributions before a reader encounters them here. The books have been flattened into parameter weights, stripped of authorship, their patterns remediated as weighted co-occurrence statistics. Against that flattening, Cloze Reader restores the passage to the surface. The language model is positioned as one layer of a call stack rather than the whole of it, a component whose outputs become legible only when a human reader engages the passage it was trained on.</p>
-
-          <p>The process demonstrates what the model, having processed the same passage and selected a word to occlude, cannot do by virtue of its low-latency engine: it cannot read slowly.</p>
         </div>
-
-        <p class="essay-draft-link">
-          <a href="https://github.com/milwrite/quimbot/blob/main/writing/cloze-reader-paper/draft.md">Read the full working draft →</a>
-        </p>
       </div>
     </section>
 
@@ -125,25 +97,24 @@
     
     <script src="./src/app.js?v=20260331" type="module"></script>
     <script>
-      // Scroll toggle between game and essay
+      // Scroll toggle between game and about section
       document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('scroll-toggle');
-        const essay = document.getElementById('essay-section');
-        const caret = document.getElementById('scroll-caret');
-        if (!btn || !essay) return;
-        let atEssay = false;
+        const about = document.getElementById('about-section');
+        if (!btn || !about) return;
+        let atAbout = false;
         btn.addEventListener('click', () => {
-          if (atEssay) {
+          if (atAbout) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           } else {
-            essay.scrollIntoView({ behavior: 'smooth' });
+            about.scrollIntoView({ behavior: 'smooth' });
           }
         });
         const obs = new IntersectionObserver(([e]) => {
-          atEssay = e.isIntersecting;
-          btn.classList.toggle('flipped', atEssay);
+          atAbout = e.isIntersecting;
+          btn.classList.toggle('flipped', atAbout);
         }, { threshold: 0.1 });
-        obs.observe(essay);
+        obs.observe(about);
       });
     </script>
     <script type="module">

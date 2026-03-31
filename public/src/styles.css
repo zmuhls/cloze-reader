@@ -1334,64 +1334,24 @@
 }
 .scroll-toggle-btn.flipped #scroll-caret { transform: rotate(180deg); }
 
-/* ── Essay section ── */
-.essay-section {
-  min-height: 100vh;
+/* ── About section (hidden below viewport until toggled) ── */
+.about-section {
   background: #fefdfb;
   border-top: 1px solid #e5e0db;
   padding-bottom: 6rem;
 }
-.essay-title {
-  font-family: 'Special Elite', 'Georgia', serif;
-  font-size: 1.5em;
-  font-weight: bold;
-  margin-bottom: 0.15em;
-  line-height: 1.3;
-  color: #2c2826;
-}
-.essay-subtitle {
+.about-body p {
   font-family: 'Georgia', serif;
-  font-size: 1em;
-  font-style: italic;
-  color: #555;
-  margin-bottom: 0.3em;
-}
-.essay-byline {
-  font-size: 0.82em;
-  color: #999;
-  margin-bottom: 2.5em;
-}
-.essay-body h3 {
-  font-family: 'Special Elite', 'Georgia', serif;
-  font-size: 1.05em;
-  font-weight: bold;
-  margin-top: 2em;
-  margin-bottom: 0.6em;
-  color: #2c2826;
-}
-.essay-body p {
-  font-family: 'Georgia', serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.8;
   color: #2c2826;
-  margin-bottom: 1.1em;
-  text-indent: 1.5em;
+  margin-bottom: 1.3em;
 }
-.essay-body h3 + p { text-indent: 0; }
-.essay-body p:first-child { text-indent: 0; }
-.essay-draft-link {
-  margin-top: 2.5em;
-  text-indent: 0;
-}
-.essay-draft-link a {
-  font-family: 'Georgia', serif;
-  font-size: 0.88em;
-  color: #6b9edd;
-  text-decoration: none;
-}
-.essay-draft-link a:hover { text-decoration: underline; }
+.about-body p:first-child { margin-top: 0; }
+.about-body a { color: #6b9edd; text-decoration: none; }
+.about-body a:hover { text-decoration: underline; }
 
 @media (max-width: 768px) {
   .scroll-toggle-btn { bottom: 4.5rem; right: 1rem; }
-  .essay-body p { font-size: 0.95rem; }
+  .about-body p { font-size: 0.9rem; }
 }
