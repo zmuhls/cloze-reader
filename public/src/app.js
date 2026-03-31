@@ -530,8 +530,8 @@ class App {
       this.elements.loading.classList.add('hidden');
       this.elements.gameArea.classList.remove('hidden');
       this.elements.stickyControls.classList.remove('hidden');
-      const scrollBtn = document.getElementById('scroll-toggle');
-      if (scrollBtn) scrollBtn.classList.add('visible');
+      const scrollWrap = document.getElementById('scroll-toggle-wrap');
+      if (scrollWrap) scrollWrap.classList.add('visible');
     }
   }
 

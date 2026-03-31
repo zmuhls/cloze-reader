@@ -1325,38 +1325,48 @@
 }
 
 /* ── Scroll toggle caret ── */
-.scroll-toggle-btn {
+.scroll-toggle-wrap {
   position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(50%);
-  width: 36px;
-  height: 36px;
+  left: 0;
+  right: 0;
+  height: 28px;
+  overflow: hidden;
+  display: none;
+  justify-content: center;
+  z-index: 60;
+  pointer-events: none;
+}
+.scroll-toggle-wrap.visible { display: flex; }
+
+.scroll-toggle-btn {
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background: rgba(44, 40, 38, 0.7);
+  background: rgba(44, 40, 38, 0.75);
   color: #f5f0eb;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.12);
   cursor: pointer;
   font-size: 1rem;
-  z-index: 50;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s ease, transform 0.3s ease;
+  pointer-events: auto;
+  transition: background 0.2s ease, transform 0.25s ease;
+  transform: translateY(0);
+  -webkit-tap-highlight-color: transparent;
 }
-.scroll-toggle-btn.visible {
-  display: flex;
-}
-.scroll-toggle-btn:hover {
+.scroll-toggle-btn:hover,
+.scroll-toggle-btn:active {
   background: rgba(44, 40, 38, 0.95);
-  transform: translateX(-50%) translateY(40%);
+  transform: translateY(-4px);
 }
 .scroll-toggle-btn #scroll-caret {
   display: inline-block;
   transition: transform 0.3s ease;
-  transform: translateY(-2px);
+  transform: translateY(-4px);
 }
-.scroll-toggle-btn.flipped #scroll-caret { transform: translateY(-2px) rotate(180deg); }
+.scroll-toggle-btn.flipped #scroll-caret { transform: translateY(-4px) rotate(180deg); }
 
 /* ── About section (hidden below viewport until toggled) ── */
 .about-title {
@@ -1417,6 +1427,6 @@
 }
 
 @media (max-width: 768px) {
-  .scroll-toggle-btn { bottom: 0; }
+  .scroll-toggle-wrap { height: 26px; }
   .about-body p { font-size: 0.9rem; }
 }
