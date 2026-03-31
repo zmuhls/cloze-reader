@@ -1435,6 +1435,14 @@
   }
 }
 
+/* Push content down on wide viewports */
+@media (min-width: 1024px) {
+  #app { padding-top: 4rem; }
+}
+@media (min-width: 1440px) {
+  #app { padding-top: 6rem; }
+}
+
 /* Custom utility classes */
 @layer utilities {
   .ink-ribbon-lines {
