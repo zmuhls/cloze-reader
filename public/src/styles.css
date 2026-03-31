@@ -611,6 +611,32 @@
     box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
   }
 
+  /* Large desktop scaling */
+  @media (min-width: 1200px) {
+    .prose {
+      font-size: 1.3rem;
+      line-height: 1.8;
+    }
+    .typewriter-text {
+      font-size: 2.5rem;
+    }
+    .typewriter-button {
+      font-size: 16px;
+      min-height: 42px;
+      padding: 10px 18px;
+    }
+  }
+
+  @media (min-width: 1600px) {
+    .prose {
+      font-size: 1.4rem;
+      line-height: 1.85;
+    }
+    .typewriter-text {
+      font-size: 2.75rem;
+    }
+  }
+
   /* Sticky Control Panel */
   .sticky-controls {
     position: fixed;
@@ -1330,7 +1356,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 28px;
+  height: 32px;
   overflow: hidden;
   display: none;
   justify-content: center;
@@ -1340,17 +1366,18 @@
 .scroll-toggle-wrap.visible { display: flex; }
 
 .scroll-toggle-btn {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: rgba(44, 40, 38, 0.75);
   color: #f5f0eb;
   border: 1px solid rgba(255,255,255,0.12);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.1rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 6px;
   pointer-events: auto;
   transition: background 0.2s ease, transform 0.25s ease;
   transform: translateY(0);
@@ -1359,14 +1386,13 @@
 .scroll-toggle-btn:hover,
 .scroll-toggle-btn:active {
   background: rgba(44, 40, 38, 0.95);
-  transform: translateY(-4px);
+  transform: translateY(-6px);
 }
 .scroll-toggle-btn #scroll-caret {
   display: inline-block;
   transition: transform 0.3s ease;
-  transform: translateY(-4px);
 }
-.scroll-toggle-btn.flipped #scroll-caret { transform: translateY(-4px) rotate(180deg); }
+.scroll-toggle-btn.flipped #scroll-caret { transform: rotate(180deg); }
 
 /* ── About section (hidden below viewport until toggled) ── */
 .about-title {
@@ -1427,6 +1453,6 @@
 }
 
 @media (max-width: 768px) {
-  .scroll-toggle-wrap { height: 26px; }
+  .scroll-toggle-wrap { height: 30px; }
   .about-body p { font-size: 0.9rem; }
 }
