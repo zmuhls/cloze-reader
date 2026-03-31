@@ -1448,72 +1448,53 @@
   }
 }
 
-/* ── Scroll toggle caret ── */
-.scroll-toggle-wrap {
-  position: fixed;
-  bottom: 56px;
-  left: 0;
-  right: 0;
-  height: 30px;
-  overflow: hidden;
-  display: none;
-  justify-content: center;
-  z-index: 1001;
-  pointer-events: none;
-}
-.scroll-toggle-wrap.visible { display: flex; }
-
-.scroll-toggle-btn {
-  width: 48px;
-  height: 48px;
+/* ── About toggle — nestled in footer, right of leaderboard ── */
+.about-toggle-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--typewriter-ink);
+  border: 1.5px solid rgba(0, 0, 0, 0.2);
   border-radius: 50%;
-  background: rgba(44, 40, 38, 0.75);
-  color: #f5f0eb;
-  border: 1px solid rgba(255,255,255,0.12);
+  width: 36px;
+  height: 36px;
+  margin: 0 4px;
   cursor: pointer;
-  font-size: 1.1rem;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding-top: 6px;
-  pointer-events: auto;
-  transition: background 0.2s ease, transform 0.25s ease;
-  transform: translateY(0);
+  opacity: 0.45;
+  transition: opacity 0.2s ease, background 0.2s ease;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
-.scroll-toggle-btn:hover,
-.scroll-toggle-btn:active {
-  background: rgba(44, 40, 38, 0.95);
-  transform: translateY(-6px);
+.about-toggle-btn:hover,
+.about-toggle-btn:active {
+  opacity: 0.85;
+  background: rgba(0, 0, 0, 0.05);
 }
-.scroll-toggle-btn #scroll-caret {
+.about-chevron {
   display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
   transition: transform 0.3s ease;
 }
-.scroll-toggle-btn.flipped #scroll-caret { transform: rotate(180deg); }
+.about-toggle-btn.flipped .about-chevron {
+  transform: translateY(2px) rotate(-135deg);
+}
 
-/* Desktop: full button, no clip, right-aligned above footer */
-@media (min-width: 1024px) {
-  .scroll-toggle-wrap {
-    height: auto;
-    overflow: visible;
-    bottom: 72px;
-    justify-content: flex-end;
-    padding-right: 2rem;
+@media (max-width: 480px) {
+  .about-toggle-btn {
+    width: 30px;
+    height: 30px;
+    margin: 0 2px;
   }
-  .scroll-toggle-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 0.85rem;
-    padding-top: 0;
-    align-items: center;
-    background: rgba(44, 40, 38, 0.5);
-    border: 1px solid rgba(0,0,0,0.08);
-  }
-  .scroll-toggle-btn:hover,
-  .scroll-toggle-btn:active {
-    background: rgba(44, 40, 38, 0.8);
-    transform: translateY(-2px);
+  .about-chevron {
+    width: 6px;
+    height: 6px;
   }
 }
 
@@ -1576,6 +1557,5 @@
 }
 
 @media (max-width: 768px) {
-  .scroll-toggle-wrap { bottom: 58px; height: 30px; }
   .about-body p { font-size: 0.9rem; }
 }
