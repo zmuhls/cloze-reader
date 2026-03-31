@@ -657,14 +657,15 @@
       font-size: 1.2rem;
     }
     .biblio-info {
-      font-size: 1.05rem;
+      font-size: 1.1rem;
     }
     .context-box {
-      font-size: 1.1rem;
+      font-size: 1.15rem;
       line-height: 1.7;
     }
     .round-badge {
-      font-size: 1rem;
+      font-size: 1.05rem;
+      padding: 6px 14px;
     }
     .typewriter-button {
       font-size: 17px;
@@ -692,7 +693,8 @@
       line-height: 1.75;
     }
     .round-badge {
-      font-size: 1.1rem;
+      font-size: 1.2rem;
+      padding: 8px 16px;
     }
     .typewriter-button {
       font-size: 18px;
@@ -746,15 +748,27 @@
 
   @media (min-width: 1024px) {
     .sticky-controls .typewriter-button {
-      min-height: 40px;
-      font-size: 14px;
+      min-height: 44px;
+      font-size: 15px;
     }
   }
 
   @media (min-width: 1280px) {
     .sticky-controls .typewriter-button {
-      min-height: 36px;
-      font-size: 13px;
+      min-height: 44px;
+      font-size: 15px;
+      max-width: 240px;
+    }
+  }
+
+  @media (min-width: 1600px) {
+    .sticky-controls .typewriter-button {
+      min-height: 48px;
+      font-size: 17px;
+      max-width: 280px;
+    }
+    .sticky-controls .controls-inner {
+      max-width: 1200px;
     }
   }
 
@@ -1417,7 +1431,7 @@
 /* ── Scroll toggle caret ── */
 .scroll-toggle-wrap {
   position: fixed;
-  bottom: 68px;
+  bottom: 52px;
   left: 0;
   right: 0;
   height: 32px;
@@ -1517,6 +1531,6 @@
 }
 
 @media (max-width: 768px) {
-  .scroll-toggle-wrap { bottom: 72px; height: 30px; }
+  .scroll-toggle-wrap { bottom: 58px; height: 30px; }
   .about-body p { font-size: 0.9rem; }
 }
