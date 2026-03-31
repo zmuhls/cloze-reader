@@ -1372,6 +1372,27 @@
 .about-body p:first-child { margin-top: 0; }
 .about-body a { color: #6b9edd; text-decoration: none; }
 .about-body a:hover { text-decoration: underline; }
+.about-refs-heading {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: #2c2826;
+  margin-top: 2.5em;
+  margin-bottom: 0.6em;
+}
+.about-refs {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.about-refs li {
+  font-family: 'Georgia', serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #555;
+  margin-bottom: 0.5em;
+  padding-left: 1.5em;
+  text-indent: -1.5em;
+}
 
 @media (max-width: 768px) {
   .scroll-toggle-btn { bottom: 4.5rem; right: 1rem; }
