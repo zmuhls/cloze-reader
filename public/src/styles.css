@@ -1448,53 +1448,50 @@
   }
 }
 
-/* ── About toggle — nestled in footer, right of leaderboard ── */
+/* ── About toggle — left side of footer, matches leaderboard btn style ── */
 .about-toggle-btn {
-  flex: 0 0 auto;
-  background: transparent;
+  background-color: var(--aged-paper-dark);
   color: var(--typewriter-ink);
-  border: 1.5px solid rgba(0, 0, 0, 0.2);
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  margin: 0 4px;
+  border: 2px solid black;
+  border-radius: 8px 0 0 8px;
+  padding: 8px 16px;
   cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: all 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.45;
-  transition: opacity 0.2s ease, background 0.2s ease;
+  flex: 0 0 auto;
+  min-width: 60px;
+  min-height: 44px;
+  box-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.1);
   touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
   user-select: none;
 }
-.about-toggle-btn:hover,
+.about-toggle-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.3),
+    0 6px 12px rgba(0, 0, 0, 0.15);
+}
 .about-toggle-btn:active {
-  opacity: 0.85;
-  background: rgba(0, 0, 0, 0.05);
-}
-.about-chevron {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: translateY(-2px) rotate(45deg);
-  transition: transform 0.3s ease;
-}
-.about-toggle-btn.flipped .about-chevron {
-  transform: translateY(2px) rotate(-135deg);
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .about-toggle-btn {
-    width: 30px;
-    height: 30px;
-    margin: 0 2px;
-  }
-  .about-chevron {
-    width: 6px;
-    height: 6px;
+    font-size: 1.25rem;
+    padding: 12px 10px;
+    min-width: 50px;
+    min-height: 48px;
   }
 }
 

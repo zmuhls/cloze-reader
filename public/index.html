@@ -85,6 +85,10 @@
     <!-- Sticky Control Panel -->
     <div id="sticky-controls" class="sticky-controls hidden">
         <div class="controls-inner">
+            <button type="button" id="scroll-toggle" class="about-toggle-btn" aria-label="About this project">
+                ℹ
+            </button>
+            <div class="controls-divider"></div>
             <button type="button" id="submit-btn" class="typewriter-button">
                 Submit
             </button>
@@ -102,10 +106,6 @@
             <button type="button" id="leaderboard-btn" class="leaderboard-footer-btn" title="View leaderboard">
                 🏅
             </button>
-            <div class="controls-divider"></div>
-            <button type="button" id="scroll-toggle" class="about-toggle-btn" aria-label="About this project">
-                <span class="about-chevron"></span>
-            </button>
         </div>
     </div>
     
@@ -119,12 +119,23 @@
 
         let atAbout = false;
 
+        function updateFlip() {
+          const wasAt = atAbout;
+          if (about.classList.contains('revealed')) {
+            const rect = about.getBoundingClientRect();
+            atAbout = rect.top < window.innerHeight * 0.5;
+          } else {
+            atAbout = false;
+          }
+          if (wasAt !== atAbout) btn.classList.toggle('flipped', atAbout);
+        }
+
+        window.addEventListener('scroll', updateFlip, { passive: true });
+
         btn.addEventListener('click', () => {
           if (atAbout) {
-            // Scroll back to top — always reversible
             window.scrollTo({ top: 0, behavior: 'smooth' });
           } else {
-            // Reveal if needed, then scroll down
             if (!about.classList.contains('revealed')) {
               about.classList.add('revealed');
               about.addEventListener('transitionend', function onEnd(e) {
@@ -137,13 +148,6 @@
             }
           }
         });
-
-        // Track whether the about section is in view
-        const obs = new IntersectionObserver(([e]) => {
-          atAbout = e.isIntersecting && about.classList.contains('revealed');
-          btn.classList.toggle('flipped', atAbout);
-        }, { threshold: 0.1 });
-        obs.observe(about);
       });
     </script>
     <script type="module">
