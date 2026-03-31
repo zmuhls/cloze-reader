@@ -1,40 +1,19 @@
 {
   "name": "cloze-reader",
   "version": "1.0.0",
-  "description": "Interactive cloze reading comprehension game",
-  "main": "src/app.js",
+  "description": "Interactive cloze reading comprehension game — Cloudflare Workers edition",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python -m http.server 8000",
-    "dev:python": "python app.py",
-    "build": "echo 'No build step needed for vanilla JS'",
-    "test": "echo 'No tests specified yet'",
-    "lint": "echo 'No linting configured yet'",
-    "start": "python app.py",
-    "docker:build": "docker build -t cloze-reader .",
-    "docker:run": "docker run -p 7860:7860 --env-file .env cloze-reader",
-    "docker:dev": "docker-compose up --build",
-    "docker:stop": "docker-compose down",
-    "docker:logs": "docker-compose logs -f",
-    "docker:clean": "docker-compose down -v --remove-orphans"
-  },
-  "keywords": [
-    "education",
-    "reading",
-    "comprehension",
-    "cloze",
-    "game"
-  ],
-  "author": "",
-  "license": "MIT",
-  "engines": {
-    "python": ">=3.9"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.57.0",
-    "playwright": "^1.57.0"
+    "dev": "wrangler dev",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250313.0",
+    "typescript": "^5.8.0",
+    "wrangler": "^4.0.0"
   }
 }

@@ -1,0 +1,25 @@
+{
+  "name": "cloze-reader",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-01",
+  // Static frontend files served automatically
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  // Kale Deploy attaches production bindings at deploy time.
+  // These placeholders enable local dev via `wrangler dev`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloze-reader-db",
+      "database_id": "local"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "local"
+    }
+  ]
+}
