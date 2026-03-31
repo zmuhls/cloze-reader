@@ -127,7 +127,7 @@
           }
         });
         const obs = new IntersectionObserver(([e]) => {
-          atAbout = e.isIntersecting;
+          atAbout = e.isIntersecting && about.classList.contains('revealed');
           btn.classList.toggle('flipped', atAbout);
         }, { threshold: 0.1 });
         obs.observe(about);
