@@ -33,8 +33,10 @@ export class LeaderboardUI {
     this.modal.innerHTML = `
       <div class="leaderboard-modal">
         <div class="leaderboard-header">
-          <h2 class="leaderboard-title">High Scores</h2>
-          <span class="leaderboard-live-indicator" title="Live updates enabled">●</span>
+          <div class="leaderboard-title-group">
+            <h2 class="leaderboard-title">High Scores</h2>
+            <span class="leaderboard-live-indicator" aria-hidden="true">●</span>
+          </div>
           <button class="leaderboard-close" aria-label="Close leaderboard">×</button>
         </div>
 
