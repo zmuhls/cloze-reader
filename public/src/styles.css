@@ -560,20 +560,53 @@
 
   @media (max-width: 480px) {
     .prose {
-      font-size: 0.875rem;
+      font-size: 0.82rem;
+      line-height: 1.55;
     }
 
     .typewriter-text {
-      font-size: 1.4rem;
+      font-size: 1.25rem;
+    }
+
+    .context-box {
+      font-size: 0.75rem;
+      padding: 6px 8px !important;
+      line-height: 1.4;
+    }
+
+    .biblio-info {
+      font-size: 0.75rem;
+    }
+
+    .round-badge {
+      font-size: 0.7rem;
+      padding: 2px 6px !important;
+    }
+
+    .paper-sheet {
+      padding: 12px !important;
     }
 
     .cloze-input {
       min-width: 2.5ch;
     }
 
+    header {
+      margin-bottom: 0.5rem !important;
+    }
+
     header img {
-      width: 2rem;
-      height: 2rem;
+      width: 1.75rem;
+      height: 1.75rem;
+    }
+
+    #app {
+      padding-top: 0.75rem;
+      padding-bottom: 0.5rem;
+    }
+
+    #game-container {
+      gap: 0.5rem;
     }
 
     .leaderboard-footer-btn {
@@ -614,47 +647,57 @@
   /* Large desktop scaling */
   @media (min-width: 1200px) {
     .prose {
-      font-size: 1.3rem;
+      font-size: 1.35rem;
       line-height: 1.8;
-    }
-    .typewriter-text {
-      font-size: 2.75rem;
-    }
-    .typewriter-subtitle {
-      font-size: 1.15rem;
-    }
-    .biblio-info {
-      font-size: 1rem;
-    }
-    .context-box {
-      font-size: 1.05rem;
-    }
-    .round-badge {
-      font-size: 1rem;
-    }
-    .typewriter-button {
-      font-size: 16px;
-      min-height: 42px;
-      padding: 10px 18px;
-    }
-  }
-
-  @media (min-width: 1600px) {
-    .prose {
-      font-size: 1.4rem;
-      line-height: 1.85;
     }
     .typewriter-text {
       font-size: 3rem;
     }
     .typewriter-subtitle {
-      font-size: 1.25rem;
+      font-size: 1.2rem;
     }
     .biblio-info {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
     }
     .context-box {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
+      line-height: 1.7;
+    }
+    .round-badge {
+      font-size: 1rem;
+    }
+    .typewriter-button {
+      font-size: 17px;
+      min-height: 44px;
+      padding: 10px 20px;
+    }
+  }
+
+  @media (min-width: 1600px) {
+    .prose {
+      font-size: 1.5rem;
+      line-height: 1.9;
+    }
+    .typewriter-text {
+      font-size: 3.5rem;
+    }
+    .typewriter-subtitle {
+      font-size: 1.35rem;
+    }
+    .biblio-info {
+      font-size: 1.2rem;
+    }
+    .context-box {
+      font-size: 1.25rem;
+      line-height: 1.75;
+    }
+    .round-badge {
+      font-size: 1.1rem;
+    }
+    .typewriter-button {
+      font-size: 18px;
+      min-height: 48px;
+      padding: 12px 24px;
     }
   }
 
