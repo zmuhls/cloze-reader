@@ -1335,6 +1335,18 @@
 .scroll-toggle-btn.flipped #scroll-caret { transform: rotate(180deg); }
 
 /* ── About section (hidden below viewport until toggled) ── */
+.about-title {
+  font-family: 'Special Elite', 'Georgia', serif;
+  font-size: 1.4em;
+  font-weight: bold;
+  margin-bottom: 0.1em;
+  color: #2c2826;
+}
+.about-subtitle {
+  font-size: 0.85em;
+  color: #999;
+  margin-bottom: 2em;
+}
 .about-section {
   background: #fefdfb;
   border-top: 1px solid #e5e0db;
