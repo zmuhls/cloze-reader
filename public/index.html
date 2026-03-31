@@ -111,41 +111,31 @@
     
     <script src="./src/app.js?v=20260331" type="module"></script>
     <script>
-      // Scroll toggle between game and about section
+      // Toggle between game view and about section
       document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('scroll-toggle');
         const about = document.getElementById('about-section');
         if (!btn || !about) return;
 
-        let atAbout = false;
-
-        function updateFlip() {
-          const wasAt = atAbout;
-          if (about.classList.contains('revealed')) {
-            const rect = about.getBoundingClientRect();
-            atAbout = rect.top < window.innerHeight * 0.5;
-          } else {
-            atAbout = false;
-          }
-          if (wasAt !== atAbout) btn.classList.toggle('flipped', atAbout);
-        }
-
-        window.addEventListener('scroll', updateFlip, { passive: true });
+        let showing = false;
 
         btn.addEventListener('click', () => {
-          if (atAbout) {
+          if (showing) {
+            // Hide about, scroll to top, unflip
+            about.classList.remove('revealed');
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            btn.classList.remove('flipped');
+            showing = false;
           } else {
-            if (!about.classList.contains('revealed')) {
-              about.classList.add('revealed');
-              about.addEventListener('transitionend', function onEnd(e) {
-                if (e.propertyName !== 'max-height') return;
-                about.removeEventListener('transitionend', onEnd);
-                about.scrollIntoView({ behavior: 'smooth' });
-              });
-            } else {
+            // Reveal about, scroll to it, flip
+            about.classList.add('revealed');
+            btn.classList.add('flipped');
+            about.addEventListener('transitionend', function onEnd(e) {
+              if (e.propertyName !== 'max-height') return;
+              about.removeEventListener('transitionend', onEnd);
               about.scrollIntoView({ behavior: 'smooth' });
-            }
+            });
+            showing = true;
           }
         });
       });
