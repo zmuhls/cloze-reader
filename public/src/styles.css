@@ -386,7 +386,7 @@
     border: 2px solid black;
     border-radius: 6px;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 15px;
     cursor: pointer;
     transition: all 0.15s ease;
     box-shadow: 
@@ -430,8 +430,8 @@
 
   .prose {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-    font-size: 1.125rem;
-    line-height: 1.7;
+    font-size: 1.25rem;
+    line-height: 1.75;
     color: var(--typewriter-ink);
     overflow-wrap: break-word;
   }
@@ -537,7 +537,7 @@
 
   @media (max-width: 640px) {
     .prose {
-      font-size: 1rem;
+      font-size: 1.125rem;
     }
 
     .typewriter-text {
@@ -547,7 +547,7 @@
     .typewriter-button {
       min-width: 100px;
       min-height: 38px;
-      font-size: 0.9rem;
+      font-size: 1rem;
     }
 
     .leaderboard-footer-btn {
@@ -560,7 +560,7 @@
 
   @media (max-width: 480px) {
     .prose {
-      font-size: 0.95rem;
+      font-size: 1.05rem;
     }
 
     .typewriter-text {
@@ -568,12 +568,12 @@
     }
 
     .cloze-input {
-      min-width: 2.5ch;
+      min-width: 3ch;
     }
 
     header img {
-      width: 2rem;
-      height: 2rem;
+      width: 2.5rem;
+      height: 2.5rem;
     }
 
     .leaderboard-footer-btn {
