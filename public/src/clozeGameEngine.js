@@ -86,14 +86,19 @@ class ClozeGame {
       this.currentBook = book;
       this.originalText = passage.trim().replace(/\s+/g, ' ');
 
-      // Create cloze text using AI
+      // Create cloze text and contextualization in parallel (independent AI calls)
       try {
-        await this.createClozeText();
-        await this.generateContextualization();
+        await Promise.all([
+          this.createClozeText(),
+          this.generateContextualization()
+        ]);
       } catch (error) {
         console.warn('AI processing failed:', error);
         throw error;
       }
+
+      // Prefetch next book in background (non-blocking)
+      bookDataService.preloadBooks(1);
 
       const snapshot = this.getProgressSnapshot();
       return {

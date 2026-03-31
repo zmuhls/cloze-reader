@@ -424,17 +424,8 @@ class App {
       // Clear chat history when starting new round
       this.chatUI.clearChatHistory();
 
-      // Always show loading for at least 1 second for smooth UX
-      const startTime = Date.now();
-
       // Load next round
       const roundData = await this.game.nextRound();
-
-      // Ensure loading is shown for at least half a second
-      const elapsedTime = Date.now() - startTime;
-      if (elapsedTime < 500) {
-        await new Promise(resolve => setTimeout(resolve, 500 - elapsedTime));
-      }
 
       this.displayRound(roundData);
       this.resetUI();
