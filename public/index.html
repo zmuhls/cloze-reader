@@ -117,20 +117,29 @@
         const btn = document.getElementById('scroll-toggle');
         const about = document.getElementById('about-section');
         if (!btn || !about) return;
+
         let atAbout = false;
+
         btn.addEventListener('click', () => {
           if (atAbout) {
+            // Scroll back to top — always reversible
             window.scrollTo({ top: 0, behavior: 'smooth' });
-          } else if (!about.classList.contains('revealed')) {
-            about.classList.add('revealed');
-            about.addEventListener('transitionend', function onEnd() {
-              about.removeEventListener('transitionend', onEnd);
-              about.scrollIntoView({ behavior: 'smooth' });
-            });
           } else {
-            about.scrollIntoView({ behavior: 'smooth' });
+            // Reveal if needed, then scroll down
+            if (!about.classList.contains('revealed')) {
+              about.classList.add('revealed');
+              about.addEventListener('transitionend', function onEnd(e) {
+                if (e.propertyName !== 'max-height') return;
+                about.removeEventListener('transitionend', onEnd);
+                about.scrollIntoView({ behavior: 'smooth' });
+              });
+            } else {
+              about.scrollIntoView({ behavior: 'smooth' });
+            }
           }
         });
+
+        // Track whether the about section is in view
         const obs = new IntersectionObserver(([e]) => {
           atAbout = e.isIntersecting && about.classList.contains('revealed');
           btn.classList.toggle('flipped', atAbout);

@@ -1327,8 +1327,9 @@
 /* ── Scroll toggle caret ── */
 .scroll-toggle-btn {
   position: fixed;
-  bottom: 5rem;
-  right: 1.5rem;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(50%);
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -1341,17 +1342,21 @@
   display: none;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, transform 0.3s ease;
 }
 .scroll-toggle-btn.visible {
   display: flex;
 }
-.scroll-toggle-btn:hover { background: rgba(44, 40, 38, 0.95); }
+.scroll-toggle-btn:hover {
+  background: rgba(44, 40, 38, 0.95);
+  transform: translateX(-50%) translateY(40%);
+}
 .scroll-toggle-btn #scroll-caret {
   display: inline-block;
   transition: transform 0.3s ease;
+  transform: translateY(-2px);
 }
-.scroll-toggle-btn.flipped #scroll-caret { transform: rotate(180deg); }
+.scroll-toggle-btn.flipped #scroll-caret { transform: translateY(-2px) rotate(180deg); }
 
 /* ── About section (hidden below viewport until toggled) ── */
 .about-title {
@@ -1412,6 +1417,6 @@
 }
 
 @media (max-width: 768px) {
-  .scroll-toggle-btn { bottom: 4.5rem; right: 1rem; }
+  .scroll-toggle-btn { bottom: 0; }
   .about-body p { font-size: 0.9rem; }
 }
